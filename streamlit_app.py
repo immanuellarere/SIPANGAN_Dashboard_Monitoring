@@ -41,80 +41,80 @@ if uploaded_file:
     # Layout 2 kolom utama
     # --------------------------
     col1, col2 = st.columns([2, 1])
-
     with col1:
-        st.subheader("Peta Indonesia — IKP per Provinsi")
+    st.subheader("Peta Indonesia — IKP per Provinsi")
 
-        try:
-            # Load GeoJSON provinsi Indonesia
-            url = "https://raw.githubusercontent.com/ans-4175/peta-indonesia-geojson/master/indonesia-prov.geojson"
-            gdf = gpd.read_file(url)
+    try:
+        # === Pilih Tahun ===
+        tahun_list = sorted(df["Tahun"].unique())
+        tahun_dipilih = st.selectbox("Pilih Tahun", tahun_list)
 
-            # Samakan format nama provinsi
-            gdf["Nama Provinsi"] = gdf["Propinsi"].str.title()   # field di geojson = "Propinsi"
-            df["Nama Provinsi"] = df["Nama Provinsi"].str.title()
+        # Filter data sesuai tahun
+        df_filtered = df[df["Tahun"] == tahun_dipilih]
 
-            # Bikin map choropleth
-            import branca.colormap as cm
+        # Load GeoJSON provinsi Indonesia
+        url = "https://raw.githubusercontent.com/ans-4175/peta-indonesia-geojson/master/indonesia-prov.geojson"
+        gdf = gpd.read_file(url)
 
-            import branca.colormap as cm
+        # Samakan format nama provinsi
+        gdf["Nama Provinsi"] = gdf["Propinsi"].str.title()
+        df_filtered["Nama Provinsi"] = df_filtered["Nama Provinsi"].str.title()
 
-            # --- cek nilai IKP ---
-            ikp_min = df["IKP"].min()
-            ikp_max = df["IKP"].max()
-            st.write(f"Range IKP: {ikp_min} – {ikp_max}")
+        # --- cek nilai IKP ---
+        ikp_min = df_filtered["IKP"].min()
+        ikp_max = df_filtered["IKP"].max()
+        st.write(f"Range IKP ({tahun_dipilih}): {ikp_min:.2f} – {ikp_max:.2f}")
 
-            # --- definisi bins provinsi sesuai tabel ---
-            bins = [0, 37.61, 48.27, 57.11, 65.96, 74.40]
+        # --- definisi bins provinsi sesuai tabel ---
+        bins = [0, 37.61, 48.27, 57.11, 65.96, 74.40]
+        if ikp_max > bins[-1]:
+            bins.append(ikp_max + 1)
+        else:
+            bins.append(100)
 
-            if ikp_max > bins[-1]:
-                bins.append(ikp_max + 1)
-            else:
-                bins.append(100)
+        # definisi colormap custom sesuai tabel
+        import branca.colormap as cm
+        colormap = cm.StepColormap(
+            colors=['#4B0000', '#FF3333', '#FF9999', '#CCFF99', '#66CC66', '#006600'],
+            vmin=bins[0],
+            vmax=bins[-1],
+            index=bins,
+            caption="Indeks Ketahanan Pangan (IKP)"
+        )
 
-            # definisi colormap custom sesuai tabel
-            colormap = cm.StepColormap(
-                colors=['#4B0000', '#FF3333', '#FF9999', '#CCFF99', '#66CC66', '#006600'],
-                vmin=bins[0],
-                vmax=bins[-1],
-                index=bins,
-                caption="Indeks Ketahanan Pangan (IKP)"
-            )
+        # bikin map kosong
+        m = folium.Map(location=[-2.5, 118], zoom_start=5)
 
-            # bikin map kosong
-            m = folium.Map(location=[-2.5, 118], zoom_start=5)
+        # gabungkan data IKP ke GeoJSON
+        gdf = gdf.merge(df_filtered[["Nama Provinsi", "IKP"]], on="Nama Provinsi", how="left")
 
-            # gabungkan data IKP ke GeoJSON
-            gdf = gdf.merge(df[["Nama Provinsi", "IKP"]], on="Nama Provinsi", how="left")
+        # styling berdasarkan nilai IKP
+        def style_function(feature):
+            value = feature["properties"]["IKP"]
+            if value is None:
+                return {"fillOpacity": 0.3, "weight": 0.5, "color": "gray"}
+            return {
+                "fillColor": colormap(value),
+                "fillOpacity": 0.7,
+                "weight": 0.5,
+                "color": "black"
+            }
 
-            # styling berdasarkan nilai IKP
-            def style_function(feature):
-                value = feature["properties"]["IKP"]
-                if value is None:
-                    return {"fillOpacity": 0.3, "weight": 0.5, "color": "gray"}
-                return {
-                    "fillColor": colormap(value),
-                    "fillOpacity": 0.7,
-                    "weight": 0.5,
-                    "color": "black"
-                }
+        # tambahkan layer geojson
+        folium.GeoJson(
+            gdf,
+            style_function=style_function,
+            tooltip=folium.GeoJsonTooltip(fields=["Nama Provinsi", "IKP"])
+        ).add_to(m)
 
-            # tambahkan layer geojson
-            folium.GeoJson(
-                gdf,
-                style_function=style_function,
-                tooltip=folium.GeoJsonTooltip(fields=["Nama Provinsi", "IKP"])
-            ).add_to(m)
+        # tambahkan colormap (legend)
+        colormap.add_to(m)
 
-            # tambahkan colormap (legend)
-            colormap.add_to(m)
+        # tampilkan di Streamlit
+        st_folium(m, width=700, height=500)
 
-            # tampilkan di Streamlit
-            st_folium(m, width=700, height=500)
-
-
-        except Exception as e:
-            st.error(f"Gagal memuat peta: {e}")
+    except Exception as e:
+        st.error(f"Gagal memuat peta: {e}")
 
         # Comparative view
         st.write("#### Comparative View")

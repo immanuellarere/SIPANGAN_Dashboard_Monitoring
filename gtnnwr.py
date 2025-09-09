@@ -2,17 +2,17 @@
 import numpy as np
 import pandas as pd
 
-# ⚠️ Catatan:
-# Jika kamu memang punya folder/package `gnnwr` (isi datasets.py & models.py),
-# baris import ini bisa tetap dipakai.
-# Kalau tidak ada, hapus dan langsung taruh implementasi di file ini.
+# Import modul GTNNWR dari package gnnwr
+# ⚠️ Pastikan kamu sudah install / punya library gnnwr
+from gnnwr.datasets import init_dataset_split
+from gnnwr.models import GTNNWR as GTNNWR_lib
 
 
 class GTNNWRWrapper:
     """
     Wrapper untuk model GTNNWR.
     Meng-handle preprocessing, pembagian data train/val/test,
-    training, dan pengambilan hasil.
+    training, dan pengambilan hasil (termasuk koefisien variabel).
     """
 
     def __init__(self, x_columns, y_column="IKP"):
@@ -38,7 +38,7 @@ class GTNNWRWrapper:
         data = data.rename(columns=lambda x: x.strip().replace(" ", "_"))
         data["id"] = np.arange(len(data))
 
-        # Split data by tahun
+        # Split data berdasarkan Tahun
         train_data = data[data["Tahun"] <= 2022]
         val_data   = data[data["Tahun"] == 2023]
         test_data  = data[data["Tahun"] == 2024]
@@ -80,6 +80,15 @@ class GTNNWRWrapper:
         self.model.add_graph()
         self.model.run(15000, 1000)
 
-        # Ambil hasil
+        # Ambil hasil dari model
         self.results = self.model.result()
+
+        # --- Ambil koefisien variabel (jika ada di results) ---
+        if "beta" in self.results:
+            coefs = pd.DataFrame(self.results["beta"], columns=self.x_columns)
+            coefs["id"] = data["id"].values
+            coefs["Tahun"] = data["Tahun"].values
+            coefs["Provinsi"] = data["Provinsi"].values if "Provinsi" in data.columns else data.index
+            self.results["coefs"] = coefs
+
         return self.results

@@ -6,8 +6,6 @@ import pandas as pd
 # Jika kamu memang punya folder/package `gnnwr` (isi datasets.py & models.py),
 # baris import ini bisa tetap dipakai.
 # Kalau tidak ada, hapus dan langsung taruh implementasi di file ini.
-from gnnwr.datasets import init_dataset_split
-from gnnwr.models import GTNNWR as GTNNWR_lib
 
 
 class GTNNWRWrapper:

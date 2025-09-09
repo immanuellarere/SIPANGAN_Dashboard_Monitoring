@@ -6,7 +6,7 @@ from streamlit_folium import st_folium
 import geopandas as gpd
 import branca.colormap as cm
 
-from gtnnwr_wrapper import GTNNWRWrapper   # pastikan file gtnnwr.py ada di folder yang sama
+from gtnnwr_wrapper import GTNNWRWrapper   # wrapper GTNNWR
 
 # --------------------------
 # Konfigurasi Halaman
@@ -34,9 +34,61 @@ if uploaded_file:
     # Imputasi missing value dengan 0
     df = df.fillna(0)
 
+    # Pastikan nama kolom standar
+    df = df.rename(columns=lambda x: x.strip().replace(" ", "_"))
+
     # Preview Data
     st.subheader("Data Preview")
     st.dataframe(df.head())
+
+    # --------------------------
+    # Jalankan GTNNWR
+    # --------------------------
+    st.subheader("Training Model GTNNWR")
+
+    if st.button("Run GTNNWR Model"):
+        try:
+            # Tentukan X dan Y
+            x_columns = [c for c in df.columns if c not in ["Provinsi", "Tahun", "IKP", "Longitude", "Latitude", "id"]]
+            model = GTNNWRWrapper(x_columns, y_column="IKP")
+            results = model.fit(df)
+
+            st.success("Model berhasil dijalankan ✅")
+
+            # --------------------------
+            # Koefisien per provinsi & tahun
+            # --------------------------
+            st.subheader("Koefisien Variabel per Provinsi & Tahun")
+            coefs_long = results["coefs_long"]
+
+            # Filter interaktif
+            tahun_dipilih = st.selectbox("Pilih Tahun", sorted(coefs_long["waktu"].unique()))
+            prov_dipilih = st.multiselect("Pilih Provinsi", coefs_long["Provinsi"].unique(),
+                                          default=coefs_long["Provinsi"].unique()[:3].tolist())
+
+            coefs_filtered = coefs_long[
+                (coefs_long["waktu"] == tahun_dipilih) &
+                (coefs_long["Provinsi"].isin(prov_dipilih))
+            ]
+
+            st.dataframe(coefs_filtered)
+
+            # Plot
+            st.subheader("Visualisasi Koefisien")
+            fig, ax = plt.subplots(figsize=(8, 5))
+            for prov in prov_dipilih:
+                subset = coefs_filtered[coefs_filtered["Provinsi"] == prov]
+                ax.plot(subset["Variabel"], subset["Koefisien"], marker="o", label=prov)
+
+            ax.set_title(f"Koefisien Variabel — Tahun {tahun_dipilih}")
+            ax.set_ylabel("Koefisien")
+            ax.set_xlabel("Variabel")
+            ax.legend()
+            plt.xticks(rotation=45)
+            st.pyplot(fig)
+
+        except Exception as e:
+            st.error(f"Gagal menjalankan model: {e}")
 
     # --------------------------
     # Layout 2 kolom utama
@@ -50,7 +102,7 @@ if uploaded_file:
         try:
             # Pilih Tahun
             tahun_list = sorted(df["Tahun"].unique())
-            tahun_dipilih = st.selectbox("Pilih Tahun", tahun_list)
+            tahun_dipilih = st.selectbox("Pilih Tahun untuk Peta", tahun_list)
 
             # Filter data sesuai tahun
             df_filtered = df[df["Tahun"] == tahun_dipilih]
@@ -118,15 +170,6 @@ if uploaded_file:
         except Exception as e:
             st.error(f"Gagal memuat peta: {e}")
 
-        # Comparative view
-        st.write("#### Comparative View")
-        prov_selected = st.multiselect(
-            "Pilih Provinsi",
-            df["Provinsi"].unique().tolist(),
-            default=["Aceh", "Sumatera Utara"]
-        )
-        st.write("Dipilih:", prov_selected)
-
     # === Kolom Kanan: Dashboard Kebijakan ===
     with col2:
         st.subheader("Policy & Action Dashboard")
@@ -143,59 +186,6 @@ if uploaded_file:
         - Pilih 2-3 provinsi untuk membandingkan indikator kunci.  
         - Gunakan Scenario untuk menguji perubahan Luas Panen, Produktivitas, atau Cadangan Pangan.
         """)
-
-    # --------------------------
-    # Storytelling Ringkasan
-    # --------------------------
-    st.subheader("Storytelling — Ringkasan Interaktif")
-    st.success("Aceh mengalami stabil/kenaikan IKP dalam 5 tahun terakhir, dipengaruhi oleh Kekeringan, Kebakaran, OPD Blas.")
-
-    # --------------------------
-    # Detail Provinsi + Simulasi
-    # --------------------------
-    st.write("---")
-    prov = st.selectbox("Pilih Provinsi untuk Detail", df["Provinsi"].unique())
-    prov_data = df[df["Provinsi"] == prov].iloc[0]
-
-    col3, col4 = st.columns([2, 1])
-
-    with col3:
-        st.write(f"### {prov} — Indeks Ketahanan Pangan")
-        # tampilkan semua kolom kecuali Nama Provinsi
-        for col in df.columns:
-            if col != "Provinsi":
-                st.metric(col, prov_data[col])
-
-    with col4:
-        st.subheader("Scenario & Simulation")
-        variabel = st.selectbox("Pilih Variabel", [c for c in df.columns if c not in ["Nama Provinsi", "IKP"]])
-        perubahan = st.number_input("Perubahan (%)", value=5, step=1)
-
-        if st.button("Run Simulation"):
-            # Jalankan GTNNWR (dummy wrapper)
-            x_columns = [c for c in df.columns if c not in ["Nama Provinsi", "IKP", "Tahun", "Longitude", "Latitude", "id"]]
-            model = GTNNWRWrapper(x_columns)
-            results = model.fit(df)
-
-            ikp_now = prov_data["IKP"]
-            ikp_simulasi = ikp_now * (1 + perubahan / 100)  # dummy simulasi
-
-            st.metric("IKP saat ini", f"{ikp_now:.2f}")
-            st.metric("IKP simulasi", f"{ikp_simulasi:.2f}")
-            st.caption("Catatan: simulasi ini masih sederhana. Untuk akurasi penuh, hubungkan output GTNNWR.")
-
-            # Plot hasil GTNNWR
-            st.subheader("True vs Predicted (GTNNWR)")
-            fig, ax = plt.subplots()
-            ax.scatter(results["true"], results["pred"], alpha=0.6)
-            ax.set_xlabel("True")
-            ax.set_ylabel("Predicted")
-            st.pyplot(fig)
-
-    # --------------------------
-    # Export PDF (placeholder)
-    # --------------------------
-    st.download_button("📥 Export PDF", "Fitur export PDF akan ditambahkan", file_name="laporan.pdf")
 
 else:
     st.warning("Silakan upload file Data SEC 2025 (CSV/Excel).")

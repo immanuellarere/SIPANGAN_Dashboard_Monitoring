@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import torch
 
 from gnnwr.datasets import init_dataset_split
 from gnnwr.models import GTNNWR as GTNNWR_lib
@@ -15,18 +16,13 @@ class GTNNWRWrapper:
     """
 
     def __init__(self, x_columns, y_column="IKP"):
-        """
-        Parameters
-        ----------
-        x_columns : list
-            Kolom prediktor (misalnya variabel pertanian, bencana, OPD).
-        y_column : str
-            Kolom target (default = IKP).
-        """
         self.x_columns = x_columns
         self.y_column = [y_column]
         self.model = None
         self.results = {}
+
+        # Aktifkan anomaly detection supaya error jelas
+        torch.autograd.set_detect_anomaly(True)
 
     def fit(self, data: pd.DataFrame, max_epoch=2000, print_step=200):
         # --- Preprocessing ---
@@ -38,7 +34,7 @@ class GTNNWRWrapper:
             if col not in data.columns:
                 raise ValueError(f"Dataset harus memiliki kolom '{col}'")
 
-        # Split dataset (asumsi ada data 2022–2024)
+        # Split dataset
         train_data = data[data["Tahun"] <= 2022]
         val_data   = data[data["Tahun"] == 2023]
         test_data  = data[data["Tahun"] == 2024]
@@ -50,11 +46,11 @@ class GTNNWRWrapper:
             test_data=test_data,
             x_column=self.x_columns,
             y_column=self.y_column,
-            spatial_column=["Longitude", "Latitude"],  # koordinat spasial
-            temp_column=["Tahun"],                     # dimensi temporal
-            id_column=["id"],                          # ID unik
+            spatial_column=["Longitude", "Latitude"],
+            temp_column=["Tahun"],
+            id_column=["id"],
             use_model="gtnnwr",
-            batch_size=256,    # kecilkan batch_size biar stabil
+            batch_size=256,
             shuffle=False
         )
 
@@ -70,26 +66,27 @@ class GTNNWRWrapper:
             train_dataset,
             val_dataset,
             test_dataset,
-            [[3], [128, 64]],   # hidden layers lebih ringan
-            drop_out=0.0,       # matikan dropout biar tracing aman
+            [[3], [128, 64]],
+            drop_out=0.0,   # matikan dropout
             optimizer="Adadelta",
             optimizer_params=optimizer_params,
             write_path="./gtnnwr_runs",
             model_name="GTNNWR_DSi"
         )
 
-        # Training
-        self.model.add_graph()
-        self.model.run(max_epoch, print_step)
+        # Training dengan proteksi error
+        try:
+            self.model.add_graph()
+            self.model.run(max_epoch, print_step)
+            raw_result = self.model.result()
+        except Exception as e:
+            print(f"[ERROR] Training gagal: {e}")
+            raw_result = {}
 
-        # Ambil hasil
-        raw_result = self.model.result()
-        if raw_result is None:
-            self.results = {}
-        else:
-            self.results = raw_result
+        # Pastikan self.results dict
+        self.results = raw_result if raw_result is not None else {}
 
-        # Tambahkan reg_result kalau ada
+        # Tambahkan reg_result
         try:
             self.results["reg_result"] = self.model.reg_result
         except Exception:
@@ -116,7 +113,6 @@ class GTNNWRWrapper:
                 print(f"[WARNING] Gagal memproses koefisien: {e}")
                 self.results["coefs_long"] = pd.DataFrame()
         else:
-            # fallback kalau beta kosong
             self.results["coefs_long"] = pd.DataFrame()
 
         return self.results

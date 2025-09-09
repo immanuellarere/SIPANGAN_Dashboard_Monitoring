@@ -190,6 +190,5 @@ with col1:
     # Export PDF (placeholder)
     # --------------------------
     st.download_button("📥 Export PDF", "Fitur export PDF akan ditambahkan", file_name="laporan.pdf")
-
 else:
     st.warning("Silakan upload file Data SEC 2025 (CSV/Excel).")

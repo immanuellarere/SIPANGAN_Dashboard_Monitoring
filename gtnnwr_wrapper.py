@@ -1,9 +1,7 @@
-# gtnnwr.py
+# gtnnwr_wrapper.py
 import numpy as np
 import pandas as pd
 
-# Import modul GTNNWR dari package gnnwr
-# ⚠️ Pastikan kamu sudah install / punya library gnnwr
 from gnnwr.datasets import init_dataset_split
 from gnnwr.models import GTNNWR as GTNNWR_lib
 
@@ -11,48 +9,46 @@ from gnnwr.models import GTNNWR as GTNNWR_lib
 class GTNNWRWrapper:
     """
     Wrapper untuk model GTNNWR.
-    Meng-handle preprocessing, pembagian data train/val/test,
-    training, dan pengambilan hasil (termasuk koefisien variabel).
+    - Preprocessing dataset
+    - Split train/val/test berdasarkan waktu
+    - Training GTNNWR
+    - Mengambil hasil model termasuk koefisien variabel (beta)
     """
 
-    def __init__(self, x_columns, y_column="IKP"):
+    def __init__(self, x_columns, y_column="Pred_IKP"):
+        """
+        Parameters
+        ----------
+        x_columns : list
+            Kolom prediktor (misalnya semua kolom coef_*).
+        y_column : str
+            Target kolom (default = Pred_IKP).
+        """
         self.x_columns = x_columns
         self.y_column = [y_column]
         self.model = None
         self.results = None
 
     def fit(self, data: pd.DataFrame):
-        """
-        Training model GTNNWR dengan dataset yang diberikan.
-
-        Parameters
-        ----------
-        data : pd.DataFrame
-            Data dengan kolom:
-              - Tahun
-              - Longitude, Latitude
-              - target (default = IKP)
-              - prediktor sesuai x_columns
-        """
         # --- Preprocessing ---
         data = data.rename(columns=lambda x: x.strip().replace(" ", "_"))
-        data["id"] = np.arange(len(data))
+        data["row_id"] = np.arange(len(data))  # ID unik per baris
 
-        # Split data berdasarkan Tahun
-        train_data = data[data["Tahun"] <= 2022]
-        val_data   = data[data["Tahun"] == 2023]
-        test_data  = data[data["Tahun"] == 2024]
+        # Split data berdasarkan waktu
+        train_data = data[data["waktu"] <= 2022]
+        val_data   = data[data["waktu"] == 2023]
+        test_data  = data[data["waktu"] == 2024]
 
-        # Init dataset untuk GTNNWR
+        # Init dataset GTNNWR
         train_set, val_set, test_set = init_dataset_split(
             train_data=train_data,
             val_data=val_data,
             test_data=test_data,
             x_column=self.x_columns,
             y_column=self.y_column,
-            spatial_column=['Longitude', 'Latitude'],
-            temp_column=['Tahun'],
-            id_column=['id'],
+            spatial_column=[],           # dataset kamu tidak punya Longitude/Latitude
+            temp_column=["waktu"],       # gunakan waktu sebagai dimensi temporal
+            id_column=["row_id"],        # gunakan row_id sebagai ID unik
             use_model="gtnnwr",
             batch_size=1024,
             shuffle=False
@@ -65,10 +61,10 @@ class GTNNWRWrapper:
             "scheduler_gamma": 0.8,
         }
 
-        # --- Inisialisasi model ---
+        # Inisialisasi model
         self.model = GTNNWR_lib(
             train_set, val_set, test_set,
-            [[3], [512, 256, 64]],   # hidden layers
+            [[3], [512, 256, 64]],  # hidden layers
             drop_out=0.5,
             optimizer="Adadelta",
             optimizer_params=optimizer_params,
@@ -80,15 +76,15 @@ class GTNNWRWrapper:
         self.model.add_graph()
         self.model.run(15000, 1000)
 
-        # Ambil hasil dari model
+        # Ambil hasil
         self.results = self.model.result()
 
-        # --- Ambil koefisien variabel (jika ada di results) ---
+        # --- Ambil koefisien variabel ---
         if "beta" in self.results:
             coefs = pd.DataFrame(self.results["beta"], columns=self.x_columns)
-            coefs["id"] = data["id"].values
-            coefs["Tahun"] = data["Tahun"].values
-            coefs["Provinsi"] = data["Provinsi"].values if "Provinsi" in data.columns else data.index
+            coefs["row_id"] = data["row_id"].values
+            coefs["waktu"] = data["waktu"].values
+            coefs["ID"] = data["ID"].values if "ID" in data.columns else data.index
             self.results["coefs"] = coefs
 
         return self.results

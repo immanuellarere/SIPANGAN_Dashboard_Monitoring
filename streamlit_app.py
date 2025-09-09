@@ -8,6 +8,7 @@ import branca.colormap as cm
 
 from gtnnwr_wrapper import GTNNWRWrapper   # wrapper GTNNWR
 
+
 # --------------------------
 # Konfigurasi Halaman
 # --------------------------
@@ -123,9 +124,9 @@ if uploaded_file:
         - Pilih 2-3 provinsi untuk membandingkan indikator kunci.  
         - Gunakan Scenario untuk menguji perubahan Luas Panen, Produktivitas, atau Cadangan Pangan.
         """)
-        
+
     # --------------------------
-    # 🔹 Bagian GTNNWR (di bawah peta)
+    # 🔹 Bagian GTNNWR
     # --------------------------
     st.write("---")
     st.subheader("Analisis GTNNWR")
@@ -152,6 +153,59 @@ if uploaded_file:
     except Exception as e:
         st.error(f"Gagal menjalankan GTNNWR: {e}")
 
+
+    # --------------------------
+    # 🔹 Detail Provinsi + Simulasi
+    # --------------------------
+    st.write("---")
+    prov = st.selectbox("Pilih Provinsi untuk Detail", df["Provinsi"].unique())
+    prov_data = df[df["Provinsi"] == prov].iloc[0]
+
+    col3, col4 = st.columns([2, 1])
+
+    with col3:
+        st.write(f"### {prov} — Indeks Ketahanan Pangan")
+        for col in df.columns:
+            if col not in ["Provinsi", "Tahun", "Longitude", "Latitude", "id"]:
+                st.metric(col, prov_data[col])
+
+    with col4:
+        st.subheader("Scenario & Simulation")
+        variabel = st.selectbox("Pilih Variabel", [c for c in df.columns if c not in ["Provinsi", "IKP", "Tahun", "Longitude", "Latitude", "id"]])
+        perubahan = st.number_input("Perubahan (%)", value=5, step=1)
+
+        if st.button("Run Simulation"):
+            # Jalankan GTNNWR
+            x_columns = [c for c in df.columns if c not in ["Provinsi", "IKP", "Tahun", "Longitude", "Latitude", "id"]]
+            model = GTNNWRWrapper(x_columns)
+            results = model.fit(df)
+
+            ikp_now = prov_data["IKP"]
+            ikp_simulasi = ikp_now * (1 + perubahan / 100)
+
+            st.metric("IKP saat ini", f"{ikp_now:.2f}")
+            st.metric("IKP simulasi", f"{ikp_simulasi:.2f}")
+            st.caption("Catatan: simulasi ini masih sederhana. Untuk akurasi penuh, hubungkan output GTNNWR.")
+
+            # Plot hasil GTNNWR
+            if results and "R2" in results:
+                st.subheader("Prediksi GTNNWR")
+                try:
+                    y_true = df["IKP"].values
+                    y_pred = model.model.predict(test_dataset=None)  # NOTE: sesuaikan jika wrapper punya predict
+                    fig, ax = plt.subplots()
+                    ax.scatter(y_true, y_pred, alpha=0.6)
+                    ax.set_xlabel("True IKP")
+                    ax.set_ylabel("Predicted IKP")
+                    st.pyplot(fig)
+                except Exception:
+                    st.warning("Plot prediksi tidak tersedia.")
+
+
+    # --------------------------
+    # Export PDF (placeholder)
+    # --------------------------
+    st.download_button("📥 Export PDF", "Fitur export PDF akan ditambahkan", file_name="laporan.pdf")
 
 else:
     st.warning("Silakan upload file Data SEC 2025 (CSV/Excel).")

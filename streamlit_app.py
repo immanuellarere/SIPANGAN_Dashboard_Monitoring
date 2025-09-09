@@ -123,61 +123,35 @@ if uploaded_file:
         - Pilih 2-3 provinsi untuk membandingkan indikator kunci.  
         - Gunakan Scenario untuk menguji perubahan Luas Panen, Produktivitas, atau Cadangan Pangan.
         """)
-
+        
     # --------------------------
     # 🔹 Bagian GTNNWR (di bawah peta)
     # --------------------------
+    st.write("---")
+    st.subheader("Analisis GTNNWR")
+    
+    try:
+        x_columns = [c for c in df.columns if c not in
+                     ["Provinsi", "Tahun", "IKP", "Longitude", "Latitude", "id"]]
+    
+        if "gtnnwr_results" not in st.session_state:
+            model = GTNNWRWrapper(x_columns, y_column="IKP")
+            st.info("⏳ Melatih model GTNNWR... (butuh waktu sebentar)")
+            results = model.fit(df)
+            st.session_state["gtnnwr_results"] = results
+            st.success("✅ Model selesai dilatih")
+        else:
+            results = st.session_state["gtnnwr_results"]
+    
+        if not results:
+            st.warning("⚠️ Tidak ada hasil evaluasi dari GTNNWR.")
+        else:
+            st.write("### Hasil Evaluasi GTNNWR")
+            st.json(results)
+    
+    except Exception as e:
+        st.error(f"Gagal menjalankan GTNNWR: {e}")
 
-    # --------------------------
-# 🔹 Bagian GTNNWR (di bawah peta)
-# --------------------------
-st.write("---")
-st.subheader("Analisis GTNNWR")
-
-try:
-    # Tentukan variabel prediktor
-    x_columns = [c for c in df.columns if c not in
-                 ["Provinsi", "Tahun", "IKP", "Longitude", "Latitude", "id"]]
-
-    # Latih model sekali (cache di session_state)
-    if "gtnnwr_results" not in st.session_state:
-        model = GTNNWRWrapper(x_columns, y_column="IKP")
-        st.info("⏳ Melatih model GTNNWR... (butuh waktu sebentar)")
-        results = model.fit(df)
-        st.session_state["gtnnwr_results"] = results
-        st.success("✅ Model selesai dilatih")
-    else:
-        results = st.session_state["gtnnwr_results"]
-
-    # Cek koefisien
-    coefs_long = results.get("coefs_long", pd.DataFrame())
-
-    if coefs_long.empty:
-        st.warning("⚠️ Model tidak menghasilkan koefisien (beta). Menampilkan hasil evaluasi model.")
-        st.json(results)   # tampilkan R², Loss, AIC dsb.
-    else:
-        # Filter interaktif
-        tahun_coef = st.selectbox("Pilih Tahun (Koefisien)", sorted(coefs_long["Tahun"].unique()))
-        prov_coef = st.selectbox("Pilih Provinsi", sorted(coefs_long["Provinsi"].unique()))
-
-        coefs_filtered = coefs_long[
-            (coefs_long["Tahun"] == tahun_coef) &
-            (coefs_long["Provinsi"] == prov_coef)
-        ]
-
-        # Tabel hasil
-        st.write(f"### Koefisien Variabel — {prov_coef}, {tahun_coef}")
-        st.dataframe(coefs_filtered[["Variabel", "Koefisien"]])
-
-        # Bar chart
-        fig, ax = plt.subplots(figsize=(8, 4))
-        ax.bar(coefs_filtered["Variabel"], coefs_filtered["Koefisien"])
-        ax.set_ylabel("Koefisien")
-        plt.xticks(rotation=45)
-        st.pyplot(fig)
-
-except Exception as e:
-    st.error(f"Gagal menjalankan GTNNWR: {e}")
 
 else:
     st.warning("Silakan upload file Data SEC 2025 (CSV/Excel).")

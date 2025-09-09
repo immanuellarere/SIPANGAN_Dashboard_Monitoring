@@ -7,3 +7,6 @@ pandas
 matplotlib
 openpyxl
 gnnwr
+pip>=25.1.1
+setuptools>=65.5.0
+wheel

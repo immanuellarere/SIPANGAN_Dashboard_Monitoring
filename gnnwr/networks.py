@@ -187,15 +187,18 @@ class STPNN(nn.Module):
                             LinearNetwork(lastsize, self.outsize,activate_func=activate_func))
 
     def forward(self, x):
-        # STPNN
-        x = x.to(torch.float32)
-        batch = x.shape[0]
-        height = x.shape[1]
-        x = torch.reshape(x, shape=(batch * height, x.shape[2]))
-        output = self.fc(x)
-        output = torch.reshape(output, shape=(batch, height * self.outsize))
-        return output
+    def forward(self, x):
+    # STPNN
+    x = x.to(torch.float32)
 
+    batch = int(x.size(0))
+    height = int(x.size(1))
+    feat = int(x.size(2))
+
+    x = x.reshape(batch * height, feat)
+    output = self.fc(x)
+    output = output.reshape(batch, height * self.outsize)
+    return output
 
 class STNN_SPNN(nn.Module):
     """
@@ -235,4 +238,5 @@ class STNN_SPNN(nn.Module):
         STNN_output = self.STNN(STNN_input)
         SPNN_output = self.SPNN(SPNN_input)
         output = torch.cat((STNN_output, SPNN_output), dim=-1)
+
         return output

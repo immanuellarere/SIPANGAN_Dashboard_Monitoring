@@ -232,11 +232,13 @@ class STNN_SPNN(nn.Module):
         self.STNN = nn.Sequential(nn.Linear(self.STNN_insize, self.STNN_outsize), self.activate_func)
         self.SPNN = nn.Sequential(nn.Linear(self.SPNN_insize, self.SPNN_outsize), self.activate_func)
 
+
     def forward(self, input1):
-        STNN_input = input1[:, :, self.SPNN_insize:]
-        SPNN_input = input1[:, :, 0:self.SPNN_insize]
+        STNN_input = input1[:, :, self.SPNN_insize:].clone()
+        SPNN_input = input1[:, :, :self.SPNN_insize].clone()
+    
         STNN_output = self.STNN(STNN_input)
         SPNN_output = self.SPNN(SPNN_input)
+    
         output = torch.cat((STNN_output, SPNN_output), dim=-1)
-
-        return output
+    return output

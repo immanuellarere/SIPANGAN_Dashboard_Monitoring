@@ -1,2 +1,7 @@
 streamlit
+streamlit-folium
+folium
+geopandas
+branca
 pandas
+matplotlib

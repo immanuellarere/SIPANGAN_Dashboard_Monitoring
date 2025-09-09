@@ -7,9 +7,5 @@ pandas
 matplotlib
 openpyxl
 
-torch==1.13.1        # versi stabil PyTorch (hindari error tracing)
-torchvision==0.14.1  # pasangan untuk Torch 1.13.1
-torchaudio==0.13.1   # pasangan untuk Torch 1.13.1
-
-gnnwr==0.1.0         # pastikan sesuai versi library kamu
+gnnwr==0.1.16         # pastikan sesuai versi library kamu
 

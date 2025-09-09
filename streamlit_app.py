@@ -22,7 +22,7 @@ st.title("SIPANGAN Dashboard Monitoring")
 # --------------------------
 # Upload Data
 # --------------------------
-uploaded_file = st.file_uploader("Upload Data SEC 2025", type=["csv", "xlsx"])
+uploaded_file = st.file_uploader("Upload Data", type=["csv", "xlsx"])
 
 if uploaded_file:
     # Baca file

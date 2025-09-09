@@ -6,7 +6,7 @@ from streamlit_folium import st_folium
 import geopandas as gpd
 import branca.colormap as cm
 
-from gtnnwr import GTNNWRWrapper   # pastikan file gtnnwr.py ada di folder yang sama
+from gtnnwr_wrapper import GTNNWRWrapper   # pastikan file gtnnwr.py ada di folder yang sama
 
 # --------------------------
 # Konfigurasi Halaman

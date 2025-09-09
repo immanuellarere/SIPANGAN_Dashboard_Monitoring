@@ -4,7 +4,6 @@ import pandas as pd
 
 # Import modul GTNNWR dari package gnnwr
 # ⚠️ Pastikan kamu sudah install / punya library gnnwr
-pip install gnnwr
 from gnnwr.datasets import init_dataset_split
 from gnnwr.models import GTNNWR as GTNNWR_lib
 

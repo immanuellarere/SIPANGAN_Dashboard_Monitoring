@@ -61,7 +61,7 @@ if uploaded_file:
 
             # Samakan format nama provinsi
             gdf["Provinsi"] = gdf["Propinsi"].str.title()
-            df_filtered["Nama Provinsi"] = df_filtered["Nama Provinsi"].str.title()
+            df_filtered["Provinsi"] = df_filtered["Provinsi"].str.title()
 
             # Cek range IKP
             ikp_min = df_filtered["IKP"].min()

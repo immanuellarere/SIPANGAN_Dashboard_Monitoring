@@ -6,3 +6,4 @@ branca
 pandas
 matplotlib
 openpyxl
+gnnwr

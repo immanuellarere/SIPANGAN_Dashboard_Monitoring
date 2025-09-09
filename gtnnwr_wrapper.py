@@ -61,7 +61,7 @@ class GTNNWRWrapper:
             temp_column=["Tahun"],
             id_column=["id"],
             use_model="gtnnwr",
-            batch_size=128,
+            batch_size=1024,
             shuffle=False
         )
 
@@ -70,7 +70,7 @@ class GTNNWRWrapper:
         # --------------------------
         optimizer_params = {
             "scheduler": "MultiStepLR",
-            "scheduler_milestones": [200, 400, 600],
+            "scheduler_milestones": [1000, 2000, 3000, 4000],
             "scheduler_gamma": 0.8,
         }
 
@@ -81,8 +81,8 @@ class GTNNWRWrapper:
             train_dataset,
             val_dataset,
             test_dataset,
-            [[3], [128, 64]],     # hidden layers
-            drop_out=1e-18,         # jangan pakai inplace dropout
+            [[3], [512,256,64]]     # hidden layers
+            drop_out=0.5,         # jangan pakai inplace dropout
             optimizer="Adadelta",
             optimizer_params=optimizer_params,
             write_path="./gtnnwr_runs",

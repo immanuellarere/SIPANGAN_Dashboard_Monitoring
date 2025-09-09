@@ -81,7 +81,7 @@ class GTNNWRWrapper:
             train_dataset,
             val_dataset,
             test_dataset,
-            [[3], [512,256,64]]     # hidden layers
+            [[3], [512,256,64]],     # hidden layers
             drop_out=0.5,         # jangan pakai inplace dropout
             optimizer="Adadelta",
             optimizer_params=optimizer_params,

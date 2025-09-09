@@ -5,3 +5,4 @@ geopandas
 branca
 pandas
 matplotlib
+openpyxl

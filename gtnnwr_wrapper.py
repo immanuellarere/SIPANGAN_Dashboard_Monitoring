@@ -16,14 +16,6 @@ class GTNNWRWrapper:
     """
 
     def __init__(self, x_columns, y_column="Pred_IKP"):
-        """
-        Parameters
-        ----------
-        x_columns : list
-            Kolom prediktor (misalnya semua kolom coef_*).
-        y_column : str
-            Target kolom (default = Pred_IKP).
-        """
         self.x_columns = x_columns
         self.y_column = [y_column]
         self.model = None
@@ -33,6 +25,10 @@ class GTNNWRWrapper:
         # --- Preprocessing ---
         data = data.rename(columns=lambda x: x.strip().replace(" ", "_"))
         data["row_id"] = np.arange(len(data))  # ID unik per baris
+
+        # Pastikan ada kolom Provinsi
+        if "Provinsi" not in data.columns:
+            raise ValueError("Dataset harus memiliki kolom 'Provinsi'.")
 
         # Split data berdasarkan waktu
         train_data = data[data["waktu"] <= 2022]
@@ -46,9 +42,9 @@ class GTNNWRWrapper:
             test_data=test_data,
             x_column=self.x_columns,
             y_column=self.y_column,
-            spatial_column=[],           # dataset kamu tidak punya Longitude/Latitude
+            spatial_column=[],           # tidak ada longitude/latitude
             temp_column=["waktu"],       # gunakan waktu sebagai dimensi temporal
-            id_column=["row_id"],        # gunakan row_id sebagai ID unik
+            id_column=["row_id"],        # ID unik
             use_model="gtnnwr",
             batch_size=1024,
             shuffle=False
@@ -64,7 +60,7 @@ class GTNNWRWrapper:
         # Inisialisasi model
         self.model = GTNNWR_lib(
             train_set, val_set, test_set,
-            [[3], [512, 256, 64]],  # hidden layers
+            [[3], [512, 256, 64]],
             drop_out=0.5,
             optimizer="Adadelta",
             optimizer_params=optimizer_params,
@@ -81,10 +77,21 @@ class GTNNWRWrapper:
 
         # --- Ambil koefisien variabel ---
         if "beta" in self.results:
+            # bentuk wide
             coefs = pd.DataFrame(self.results["beta"], columns=self.x_columns)
             coefs["row_id"] = data["row_id"].values
             coefs["waktu"] = data["waktu"].values
-            coefs["ID"] = data["ID"].values if "ID" in data.columns else data.index
-            self.results["coefs"] = coefs
+            coefs["Provinsi"] = data["Provinsi"].values
+
+            # bentuk long: Provinsi | Tahun | Variabel | Koefisien
+            coefs_long = coefs.melt(
+                id_vars=["Provinsi", "waktu", "row_id"],
+                value_vars=self.x_columns,
+                var_name="Variabel",
+                value_name="Koefisien"
+            )
+
+            self.results["coefs_wide"] = coefs
+            self.results["coefs_long"] = coefs_long
 
         return self.results

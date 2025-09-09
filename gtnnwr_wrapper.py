@@ -3,6 +3,7 @@ import pandas as pd
 from gnnwr.datasets import init_dataset_split
 from gnnwr.models import GTNNWR as GTNNWR_lib
 
+torch.autograd.set_detect_anomaly(True)
 
 class GTNNWRWrapper:
     """

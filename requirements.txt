@@ -1,11 +1,18 @@
-streamlit
-streamlit-folium
-folium
-geopandas
-branca
-pandas
-matplotlib
-openpyxl
+# Versi Python: 3.9 atau 3.10 direkomendasikan
+numpy==1.23.5
+pandas==1.5.3
+matplotlib==3.7.1
+geopandas==0.12.2
+folium==0.14.0
+streamlit==1.26.0
+streamlit-folium==0.12.0
+branca==0.6.0
 
-gnnwr==0.1.16         # pastikan sesuai versi library kamu
+# PyTorch versi stabil (hindari 2.x karena error inplace di gnnwr)
+torch==1.13.1
+torchvision==0.14.1
+torchaudio==0.13.1
+
+# Library utama GTNNWR
+gnnwr==0.0.1
 

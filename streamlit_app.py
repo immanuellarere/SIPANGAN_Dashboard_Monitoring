@@ -17,8 +17,7 @@ st.set_page_config(
     layout="wide"
 )
 
-st.title("Kekuatan Data — Dashboard IKP")
-st.caption("Statistika & Teknologi untuk Indonesia Emas — Subtema: Krisis Pangan & Energi")
+st.title("SIPANGAN Dashboard Monitoring")
 
 # --------------------------
 # Upload Data

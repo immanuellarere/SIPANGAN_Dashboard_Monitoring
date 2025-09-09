@@ -9,10 +9,6 @@ from gnnwr.models import GTNNWR as GTNNWR_lib
 class GTNNWRWrapper:
     """
     Wrapper untuk model GTNNWR.
-    - Preprocessing dataset
-    - Split train/val/test berdasarkan Tahun
-    - Training GTNNWR
-    - Ambil hasil model termasuk koefisien variabel (beta)
     """
 
     def __init__(self, x_columns, y_column="IKP"):
@@ -21,13 +17,13 @@ class GTNNWRWrapper:
         self.model = None
         self.results = {}
 
-        # Aktifkan anomaly detection supaya error jelas
+        # Debug mode PyTorch
         torch.autograd.set_detect_anomaly(True)
 
-    def fit(self, data: pd.DataFrame, max_epoch=2000, print_step=200):
+    def fit(self, data: pd.DataFrame, max_epoch=500, print_step=100):
         # --- Preprocessing ---
         data = data.rename(columns=lambda x: x.strip().replace(" ", "_"))
-        data["id"] = np.arange(len(data))  # ID unik per baris
+        data["id"] = np.arange(len(data))  # ID unik
 
         # Validasi kolom wajib
         for col in ["Provinsi", "Tahun", "Longitude", "Latitude"]:
@@ -50,31 +46,31 @@ class GTNNWRWrapper:
             temp_column=["Tahun"],
             id_column=["id"],
             use_model="gtnnwr",
-            batch_size=256,
+            batch_size=64,   # kecil biar aman
             shuffle=False
         )
 
         # Hyperparameter optimizer
         optimizer_params = {
             "scheduler": "MultiStepLR",
-            "scheduler_milestones": [200, 400, 600, 800],
+            "scheduler_milestones": [100, 200, 300],
             "scheduler_gamma": 0.8,
         }
 
-        # Inisialisasi model GTNNWR
+        # Inisialisasi model
         self.model = GTNNWR_lib(
             train_dataset,
             val_dataset,
             test_dataset,
-            [[3], [128, 64]],
-            drop_out=0.0,   # matikan dropout
+            [[3], [64, 32]],   # lebih ringan
+            drop_out=0.0,
             optimizer="Adadelta",
             optimizer_params=optimizer_params,
             write_path="./gtnnwr_runs",
             model_name="GTNNWR_DSi"
         )
 
-        # Training dengan proteksi error
+        # Training (try-except agar aman)
         try:
             self.model.add_graph()
             self.model.run(max_epoch, print_step)
@@ -83,24 +79,28 @@ class GTNNWRWrapper:
             print(f"[ERROR] Training gagal: {e}")
             raw_result = {}
 
-        # Pastikan self.results dict
         self.results = raw_result if raw_result is not None else {}
 
-        # Tambahkan reg_result
+        # Ambil reg_result juga
         try:
             self.results["reg_result"] = self.model.reg_result
         except Exception:
             self.results["reg_result"] = {}
 
-        # --- Ambil koefisien variabel ---
+        # --- Ambil koefisien ---
+        beta = None
         if "beta" in self.results and self.results["beta"] is not None:
+            beta = self.results["beta"]
+        elif "reg_result" in self.results and "beta" in self.results["reg_result"]:
+            beta = self.results["reg_result"]["beta"]
+
+        if beta is not None:
             try:
-                coefs = pd.DataFrame(self.results["beta"], columns=self.x_columns)
+                coefs = pd.DataFrame(beta, columns=self.x_columns)
                 coefs["id"] = data["id"].values
                 coefs["Tahun"] = data["Tahun"].values
                 coefs["Provinsi"] = data["Provinsi"].values
 
-                # Long format
                 coefs_long = coefs.melt(
                     id_vars=["Provinsi", "Tahun", "id"],
                     value_vars=self.x_columns,
@@ -108,11 +108,11 @@ class GTNNWRWrapper:
                     value_name="Koefisien"
                 )
                 self.results["coefs_long"] = coefs_long
-
             except Exception as e:
                 print(f"[WARNING] Gagal memproses koefisien: {e}")
                 self.results["coefs_long"] = pd.DataFrame()
         else:
+            print("[INFO] Model tidak menghasilkan beta.")
             self.results["coefs_long"] = pd.DataFrame()
 
         return self.results

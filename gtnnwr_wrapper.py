@@ -1,9 +1,9 @@
 import numpy as np
 import pandas as pd
+import torch   # <--- WAJIB, biar bisa pakai anomaly detection
 from gnnwr.datasets import init_dataset_split
 from gnnwr.models import GTNNWR as GTNNWR_lib
 
-torch.autograd.set_detect_anomaly(True)
 
 class GTNNWRWrapper:
     """
@@ -27,6 +27,15 @@ class GTNNWRWrapper:
         self.results = {}
 
     def fit(self, data: pd.DataFrame, max_epoch=2000, print_step=200):
+        """
+        Latih model GTNNWR.
+        """
+
+        # --------------------------
+        # Aktifkan anomaly detection PyTorch
+        # --------------------------
+        torch.autograd.set_detect_anomaly(True)
+
         # --------------------------
         # Preprocessing
         # --------------------------
@@ -76,14 +85,14 @@ class GTNNWRWrapper:
         }
 
         # --------------------------
-        # Inisialisasi model
+        # Inisialisasi model GTNNWR
         # --------------------------
         self.model = GTNNWR_lib(
             train_dataset,
             val_dataset,
             test_dataset,
-            [[3], [512,256,64]],     # hidden layers
-            drop_out=0.5,         # jangan pakai inplace dropout
+            [[3], [512, 256, 64]],  # hidden layers
+            drop_out=0.5,           # gunakan dropout biasa, bukan inplace
             optimizer="Adadelta",
             optimizer_params=optimizer_params,
             write_path="./gtnnwr_runs",
@@ -93,25 +102,26 @@ class GTNNWRWrapper:
         # --------------------------
         # Training
         # --------------------------
-        self.model.add_graph()
-        self.model.run(max_epoch, print_step)
+        try:
+            self.model.add_graph()
+            self.model.run(max_epoch, print_step)
+        except RuntimeError as e:
+            # Jika error in-place, PyTorch anomaly detection akan menunjuk layer penyebab
+            raise RuntimeError(f"Training GTNNWR gagal: {e}")
 
         # --------------------------
         # Ambil hasil evaluasi
         # --------------------------
-        raw_result = None
+        raw_result = {}
         try:
             raw_result = self.model.result()
         except Exception as e:
             print(f"[WARNING] result() gagal: {e}")
-
-        if not raw_result:
             try:
                 raw_result = self.model.reg_result
                 print("[INFO] Hasil diambil dari reg_result")
             except Exception:
                 raw_result = {}
 
-        self.results = raw_result if raw_result else {}
-
+        self.results = raw_result
         return self.results

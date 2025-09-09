@@ -127,55 +127,57 @@ if uploaded_file:
     # --------------------------
     # 🔹 Bagian GTNNWR (di bawah peta)
     # --------------------------
-    st.write("---")
-    st.subheader("Analisis Koefisien GTNNWR")
 
-    try:
-        # Tentukan variabel prediktor
-        x_columns = [c for c in df.columns if c not in
-                     ["Provinsi", "Tahun", "IKP", "Longitude", "Latitude", "id"]]
+    # --------------------------
+# 🔹 Bagian GTNNWR (di bawah peta)
+# --------------------------
+st.write("---")
+st.subheader("Analisis GTNNWR")
 
-        # Latih model sekali (cache di session_state)
-        if "gtnnwr_results" not in st.session_state:
-            model = GTNNWRWrapper(x_columns, y_column="IKP")
-            st.info("⏳ Melatih model GTNNWR... (butuh waktu sebentar)")
-            results = model.fit(df)
-            st.session_state["gtnnwr_results"] = results
-            if results.get("coefs_long", pd.DataFrame()).empty:
-                st.warning("⚠️ Model tidak menghasilkan koefisien (coefs_long kosong).")
-            else:
-                st.success("✅ Model selesai dilatih")
-        else:
-            results = st.session_state["gtnnwr_results"]
+try:
+    # Tentukan variabel prediktor
+    x_columns = [c for c in df.columns if c not in
+                 ["Provinsi", "Tahun", "IKP", "Longitude", "Latitude", "id"]]
 
-        # Ambil koefisien long
-        coefs_long = results.get("coefs_long", pd.DataFrame())
+    # Latih model sekali (cache di session_state)
+    if "gtnnwr_results" not in st.session_state:
+        model = GTNNWRWrapper(x_columns, y_column="IKP")
+        st.info("⏳ Melatih model GTNNWR... (butuh waktu sebentar)")
+        results = model.fit(df)
+        st.session_state["gtnnwr_results"] = results
+        st.success("✅ Model selesai dilatih")
+    else:
+        results = st.session_state["gtnnwr_results"]
 
-        if coefs_long.empty:
-            st.warning("Tidak ada koefisien yang bisa ditampilkan.")
-        else:
-            # Filter interaktif
-            tahun_coef = st.selectbox("Pilih Tahun (Koefisien)", sorted(coefs_long["Tahun"].unique()))
-            prov_coef = st.selectbox("Pilih Provinsi", sorted(coefs_long["Provinsi"].unique()))
+    # Cek koefisien
+    coefs_long = results.get("coefs_long", pd.DataFrame())
 
-            coefs_filtered = coefs_long[
-                (coefs_long["Tahun"] == tahun_coef) &
-                (coefs_long["Provinsi"] == prov_coef)
-            ]
+    if coefs_long.empty:
+        st.warning("⚠️ Model tidak menghasilkan koefisien (beta). Menampilkan hasil evaluasi model.")
+        st.json(results)   # tampilkan R², Loss, AIC dsb.
+    else:
+        # Filter interaktif
+        tahun_coef = st.selectbox("Pilih Tahun (Koefisien)", sorted(coefs_long["Tahun"].unique()))
+        prov_coef = st.selectbox("Pilih Provinsi", sorted(coefs_long["Provinsi"].unique()))
 
-            # Tabel hasil
-            st.write(f"### Koefisien Variabel — {prov_coef}, {tahun_coef}")
-            st.dataframe(coefs_filtered[["Variabel", "Koefisien"]])
+        coefs_filtered = coefs_long[
+            (coefs_long["Tahun"] == tahun_coef) &
+            (coefs_long["Provinsi"] == prov_coef)
+        ]
 
-            # Bar chart
-            fig, ax = plt.subplots(figsize=(8, 4))
-            ax.bar(coefs_filtered["Variabel"], coefs_filtered["Koefisien"])
-            ax.set_ylabel("Koefisien")
-            plt.xticks(rotation=45)
-            st.pyplot(fig)
+        # Tabel hasil
+        st.write(f"### Koefisien Variabel — {prov_coef}, {tahun_coef}")
+        st.dataframe(coefs_filtered[["Variabel", "Koefisien"]])
 
-    except Exception as e:
-        st.error(f"Gagal menjalankan GTNNWR: {e}")
+        # Bar chart
+        fig, ax = plt.subplots(figsize=(8, 4))
+        ax.bar(coefs_filtered["Variabel"], coefs_filtered["Koefisien"])
+        ax.set_ylabel("Koefisien")
+        plt.xticks(rotation=45)
+        st.pyplot(fig)
+
+except Exception as e:
+    st.error(f"Gagal menjalankan GTNNWR: {e}")
 
 else:
     st.warning("Silakan upload file Data SEC 2025 (CSV/Excel).")

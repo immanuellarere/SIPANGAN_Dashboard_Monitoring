@@ -88,7 +88,7 @@ if uploaded_file:
             m = folium.Map(location=[-2.5, 118], zoom_start=5)
 
             # Gabungkan data IKP ke GeoJSON
-            gdf = gdf.merge(df_filtered[["Nama Provinsi", "IKP"]], on="Nama Provinsi", how="left")
+            gdf = gdf.merge(df_filtered[["Provinsi", "IKP"]], on="Provinsi", how="left")
 
             # Styling berdasarkan nilai IKP
             def style_function(feature):
@@ -106,7 +106,7 @@ if uploaded_file:
             folium.GeoJson(
                 gdf,
                 style_function=style_function,
-                tooltip=folium.GeoJsonTooltip(fields=["Nama Provinsi", "IKP"])
+                tooltip=folium.GeoJsonTooltip(fields=["Provinsi", "IKP"])
             ).add_to(m)
 
             # Tambahkan colormap (legend)
@@ -122,7 +122,7 @@ if uploaded_file:
         st.write("#### Comparative View")
         prov_selected = st.multiselect(
             "Pilih Provinsi",
-            df["Nama Provinsi"].unique().tolist(),
+            df["Provinsi"].unique().tolist(),
             default=["Aceh", "Sumatera Utara"]
         )
         st.write("Dipilih:", prov_selected)

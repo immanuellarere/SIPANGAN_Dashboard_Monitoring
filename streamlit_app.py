@@ -154,7 +154,7 @@ if uploaded_file:
     # Detail Provinsi + Simulasi
     # --------------------------
     st.write("---")
-    prov = st.selectbox("Pilih Provinsi untuk Detail", df["Nama Provinsi"].unique())
+    prov = st.selectbox("Pilih Provinsi untuk Detail", df["Provinsi"].unique())
     prov_data = df[df["Provinsi"] == prov].iloc[0]
 
     col3, col4 = st.columns([2, 1])

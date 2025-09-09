@@ -62,7 +62,7 @@ if uploaded_file:
             gdf["Provinsi"] = gdf["Propinsi"].str.title()
             df_filtered["Provinsi"] = df_filtered["Provinsi"].str.title()
 
-            # Cek range IKP
+            # Range IKP
             ikp_min = df_filtered["IKP"].min()
             ikp_max = df_filtered["IKP"].max()
             st.write(f"Range IKP ({tahun_peta}): {ikp_min:.2f} – {ikp_max:.2f}")
@@ -141,32 +141,38 @@ if uploaded_file:
             st.info("⏳ Melatih model GTNNWR... (butuh waktu sebentar)")
             results = model.fit(df)
             st.session_state["gtnnwr_results"] = results
-            st.success("✅ Model selesai dilatih")
+            if results.get("coefs_long", pd.DataFrame()).empty:
+                st.warning("⚠️ Model tidak menghasilkan koefisien (coefs_long kosong).")
+            else:
+                st.success("✅ Model selesai dilatih")
         else:
             results = st.session_state["gtnnwr_results"]
 
         # Ambil koefisien long
-        coefs_long = results["coefs_long"]
+        coefs_long = results.get("coefs_long", pd.DataFrame())
 
-        # Filter interaktif
-        tahun_coef = st.selectbox("Pilih Tahun (Koefisien)", sorted(coefs_long["Tahun"].unique()))
-        prov_coef = st.selectbox("Pilih Provinsi", sorted(coefs_long["Provinsi"].unique()))
+        if coefs_long.empty:
+            st.warning("Tidak ada koefisien yang bisa ditampilkan.")
+        else:
+            # Filter interaktif
+            tahun_coef = st.selectbox("Pilih Tahun (Koefisien)", sorted(coefs_long["Tahun"].unique()))
+            prov_coef = st.selectbox("Pilih Provinsi", sorted(coefs_long["Provinsi"].unique()))
 
-        coefs_filtered = coefs_long[
-            (coefs_long["Tahun"] == tahun_coef) &
-            (coefs_long["Provinsi"] == prov_coef)
-        ]
+            coefs_filtered = coefs_long[
+                (coefs_long["Tahun"] == tahun_coef) &
+                (coefs_long["Provinsi"] == prov_coef)
+            ]
 
-        # Tabel hasil
-        st.write(f"### Koefisien Variabel — {prov_coef}, {tahun_coef}")
-        st.dataframe(coefs_filtered[["Variabel", "Koefisien"]])
+            # Tabel hasil
+            st.write(f"### Koefisien Variabel — {prov_coef}, {tahun_coef}")
+            st.dataframe(coefs_filtered[["Variabel", "Koefisien"]])
 
-        # Bar chart
-        fig, ax = plt.subplots(figsize=(8, 4))
-        ax.bar(coefs_filtered["Variabel"], coefs_filtered["Koefisien"])
-        ax.set_ylabel("Koefisien")
-        plt.xticks(rotation=45)
-        st.pyplot(fig)
+            # Bar chart
+            fig, ax = plt.subplots(figsize=(8, 4))
+            ax.bar(coefs_filtered["Variabel"], coefs_filtered["Koefisien"])
+            ax.set_ylabel("Koefisien")
+            plt.xticks(rotation=45)
+            st.pyplot(fig)
 
     except Exception as e:
         st.error(f"Gagal menjalankan GTNNWR: {e}")

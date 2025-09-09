@@ -233,13 +233,14 @@ class STNN_SPNN(nn.Module):
         self.SPNN = nn.Sequential(nn.Linear(self.SPNN_insize, self.SPNN_outsize), self.activate_func)
     
     def forward(self, x):
-    x = x.to(torch.float32)
-    batch = int(x.size(0))
-    height = int(x.size(1))
-    feat = int(x.size(2))
-    x = x.reshape(batch * height, feat)
-    output = self.fc(x)
-    output = output.reshape(batch, height * self.outsize)
+        x = x.to(torch.float32)
+        batch = int(x.size(0))
+        height = int(x.size(1))
+        feat = int(x.size(2))
+        x = x.reshape(batch * height, feat)
+        output = self.fc(x)
+        output = output.reshape(batch, height * self.outsize)
     return output
+
 
 

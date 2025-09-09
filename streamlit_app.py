@@ -155,7 +155,7 @@ if uploaded_file:
     # --------------------------
     st.write("---")
     prov = st.selectbox("Pilih Provinsi untuk Detail", df["Nama Provinsi"].unique())
-    prov_data = df[df["Nama Provinsi"] == prov].iloc[0]
+    prov_data = df[df["Provinsi"] == prov].iloc[0]
 
     col3, col4 = st.columns([2, 1])
 
@@ -163,7 +163,7 @@ if uploaded_file:
         st.write(f"### {prov} — Indeks Ketahanan Pangan")
         # tampilkan semua kolom kecuali Nama Provinsi
         for col in df.columns:
-            if col != "Nama Provinsi":
+            if col != "Provinsi":
                 st.metric(col, prov_data[col])
 
     with col4:

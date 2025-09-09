@@ -60,7 +60,7 @@ if uploaded_file:
             gdf = gpd.read_file(url)
 
             # Samakan format nama provinsi
-            gdf["Nama Provinsi"] = gdf["Propinsi"].str.title()
+            gdf["Provinsi"] = gdf["Propinsi"].str.title()
             df_filtered["Nama Provinsi"] = df_filtered["Nama Provinsi"].str.title()
 
             # Cek range IKP

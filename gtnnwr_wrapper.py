@@ -82,7 +82,7 @@ class GTNNWRWrapper:
             val_dataset,
             test_dataset,
             [[3], [128, 64]],     # hidden layers
-            drop_out=0.0,         # jangan pakai inplace dropout
+            drop_out=1e-18,         # jangan pakai inplace dropout
             optimizer="Adadelta",
             optimizer_params=optimizer_params,
             write_path="./gtnnwr_runs",

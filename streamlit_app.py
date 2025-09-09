@@ -34,10 +34,11 @@ if uploaded_file:
     # Imputasi missing value dengan 0
     df = df.fillna(0)
 
-    # Pastikan ada kolom Provinsi
+    # Samakan nama kolom supaya konsisten
     if "Provinsi" not in df.columns:
-        if "ID" in df.columns:
-            df = df.rename(columns={"ID": "Provinsi"})
+        df = df.rename(columns={"ID": "Provinsi"})
+    if "Tahun" not in df.columns:
+        df = df.rename(columns={"waktu": "Tahun"})
 
     # Preview Data
     st.subheader("Data Preview")
@@ -68,8 +69,8 @@ if uploaded_file:
             df_filtered["Provinsi"] = df_filtered["Provinsi"].str.title()
 
             # Range IKP
-            ikp_min = df_filtered["IKP"].min()
-            ikp_max = df_filtered["IKP"].max()
+            ikp_min = df_filtered["Pred_IKP"].min()
+            ikp_max = df_filtered["Pred_IKP"].max()
             st.write(f"Range IKP ({tahun_dipilih}): {ikp_min:.2f} – {ikp_max:.2f}")
 
             # Bins
@@ -90,10 +91,10 @@ if uploaded_file:
 
             m = folium.Map(location=[-2.5, 118], zoom_start=5)
 
-            gdf = gdf.merge(df_filtered[["Provinsi", "IKP"]], on="Provinsi", how="left")
+            gdf = gdf.merge(df_filtered[["Provinsi", "Pred_IKP"]], on="Provinsi", how="left")
 
             def style_function(feature):
-                value = feature["properties"]["IKP"]
+                value = feature["properties"]["Pred_IKP"]
                 if value is None:
                     return {"fillOpacity": 0.3, "weight": 0.5, "color": "gray"}
                 return {
@@ -106,7 +107,7 @@ if uploaded_file:
             folium.GeoJson(
                 gdf,
                 style_function=style_function,
-                tooltip=folium.GeoJsonTooltip(fields=["Provinsi", "IKP"])
+                tooltip=folium.GeoJsonTooltip(fields=["Provinsi", "Pred_IKP"])
             ).add_to(m)
 
             colormap.add_to(m)
@@ -129,21 +130,15 @@ if uploaded_file:
     # --------------------------
     # Detail Provinsi + Koefisien
     # --------------------------
-    from gtnnwr_wrapper import GTNNWRWrapper
-
-    # Pilih kolom prediktor
     x_columns = [c for c in df.columns if c.startswith("coef_")]
     
-    # Jalankan GTNNWR
     model = GTNNWRWrapper(x_columns, y_column="Pred_IKP")
     results = model.fit(df)
     
-    # Tampilkan hasil koefisien
     if "coefs" in results:
         st.subheader("Koefisien Variabel (GTNNWR)")
         st.dataframe(results["coefs"].head())
 
-    # Plot hasil True vs Predicted
     if "true" in results and "pred" in results:
         st.subheader("True vs Predicted (GTNNWR)")
         fig, ax = plt.subplots()

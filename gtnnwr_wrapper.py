@@ -11,19 +11,11 @@ class GTNNWRWrapper:
     """
     Wrapper untuk model GTNNWR.
     Catatan:
-    - library gnnwr biasanya hanya mengembalikan hasil evaluasi terbatas.
-    - Wrapper ini akan mencoba ambil hasil bawaan, jika gagal hitung manual (R², MSE).
+    - Training tetap pakai autograd (gradien tidak dimatikan).
+    - Jika hasil dari library kosong, wrapper hitung evaluasi manual (R², MSE).
     """
 
     def __init__(self, x_columns, y_column="IKP"):
-        """
-        Parameters
-        ----------
-        x_columns : list
-            Nama kolom prediktor (fitur input).
-        y_column : str
-            Nama kolom target (default = "IKP").
-        """
         self.x_columns = x_columns
         self.y_column = [y_column]
         self.model = None
@@ -35,12 +27,16 @@ class GTNNWRWrapper:
         """
 
         # --------------------------
+        # Debug PyTorch: aktifkan anomaly detection
+        # --------------------------
+        torch.autograd.set_detect_anomaly(True)
+
+        # --------------------------
         # Preprocessing
         # --------------------------
         data = data.rename(columns=lambda x: x.strip().replace(" ", "_"))
-        data["id"] = np.arange(len(data))  # ID unik
+        data["id"] = np.arange(len(data))
 
-        # Validasi kolom wajib
         required_cols = ["Provinsi", "Tahun", "Longitude", "Latitude"]
         for col in required_cols:
             if col not in data.columns:
@@ -89,26 +85,19 @@ class GTNNWRWrapper:
             train_dataset,
             val_dataset,
             test_dataset,
-            [[3], [128, 64]],  # hidden layers
-            drop_out=0.5,
-            optimizer="Adam",
+            [[3], [128, 64]],   # hidden layers
+            drop_out=0.5,       # jangan inplace
+            optimizer="Adam",   # lebih stabil daripada Adadelta
             optimizer_params=optimizer_params,
             write_path="./gtnnwr_runs",
             model_name="GTNNWR_DSi"
         )
 
         # --------------------------
-        # Training
+        # Training (dengan autograd)
         # --------------------------
-        try:
-            self.model.add_graph()
-            self.model.run(max_epoch, print_step)
-        except RuntimeError as e:
-            print("[WARNING] Gradient error terdeteksi:", e)
-            print("[INFO] Menjalankan ulang tanpa autograd (no_grad mode)…")
-            with torch.no_grad():
-                self.model.add_graph()
-                self.model.run(max_epoch, print_step)
+        self.model.add_graph()
+        self.model.run(max_epoch, print_step)
 
         # --------------------------
         # Ambil hasil evaluasi

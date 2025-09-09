@@ -38,10 +38,11 @@ if uploaded_file:
     st.dataframe(df.head())
 
     # --------------------------
-    # Layout 2 kolom utama
-    # --------------------------
-    col1, col2 = st.columns([2, 1])
-    with col1:
+# Layout 2 kolom utama
+# --------------------------
+col1, col2 = st.columns([2, 1])
+
+with col1:
     st.subheader("Peta Indonesia — IKP per Provinsi")
 
     try:

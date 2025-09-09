@@ -6,7 +6,7 @@ from streamlit_folium import st_folium
 import geopandas as gpd
 import branca.colormap as cm
 
-from gtnnwr_wrapper import GTNNWRWrapper
+from gtnnwr import GTNNWRWrapper   # pastikan file gtnnwr.py ada di folder yang sama
 
 # --------------------------
 # Konfigurasi Halaman
@@ -34,12 +34,6 @@ if uploaded_file:
     # Imputasi missing value dengan 0
     df = df.fillna(0)
 
-    # Samakan nama kolom supaya konsisten
-    if "Provinsi" not in df.columns:
-        df = df.rename(columns={"ID": "Provinsi"})
-    if "Tahun" not in df.columns:
-        df = df.rename(columns={"waktu": "Tahun"})
-
     # Preview Data
     st.subheader("Data Preview")
     st.dataframe(df.head())
@@ -58,29 +52,30 @@ if uploaded_file:
             tahun_list = sorted(df["Tahun"].unique())
             tahun_dipilih = st.selectbox("Pilih Tahun", tahun_list)
 
+            # Filter data sesuai tahun
             df_filtered = df[df["Tahun"] == tahun_dipilih]
 
             # Load GeoJSON provinsi Indonesia
             url = "https://raw.githubusercontent.com/ans-4175/peta-indonesia-geojson/master/indonesia-prov.geojson"
             gdf = gpd.read_file(url)
 
-            # Samakan nama provinsi
-            gdf["Provinsi"] = gdf["Propinsi"].str.title()
-            df_filtered["Provinsi"] = df_filtered["Provinsi"].str.title()
+            # Samakan format nama provinsi
+            gdf["Nama Provinsi"] = gdf["Propinsi"].str.title()
+            df_filtered["Nama Provinsi"] = df_filtered["Nama Provinsi"].str.title()
 
-            # Range IKP
-            ikp_min = df_filtered["Pred_IKP"].min()
-            ikp_max = df_filtered["Pred_IKP"].max()
+            # Cek range IKP
+            ikp_min = df_filtered["IKP"].min()
+            ikp_max = df_filtered["IKP"].max()
             st.write(f"Range IKP ({tahun_dipilih}): {ikp_min:.2f} – {ikp_max:.2f}")
 
-            # Bins
+            # Definisi bins provinsi sesuai tabel
             bins = [0, 37.61, 48.27, 57.11, 65.96, 74.40]
             if ikp_max > bins[-1]:
                 bins.append(ikp_max + 1)
             else:
                 bins.append(100)
 
-            # Colormap
+            # Colormap custom
             colormap = cm.StepColormap(
                 colors=['#4B0000', '#FF3333', '#FF9999', '#CCFF99', '#66CC66', '#006600'],
                 vmin=bins[0],
@@ -89,12 +84,15 @@ if uploaded_file:
                 caption="Indeks Ketahanan Pangan (IKP)"
             )
 
+            # Bikin map kosong
             m = folium.Map(location=[-2.5, 118], zoom_start=5)
 
-            gdf = gdf.merge(df_filtered[["Provinsi", "Pred_IKP"]], on="Provinsi", how="left")
+            # Gabungkan data IKP ke GeoJSON
+            gdf = gdf.merge(df_filtered[["Nama Provinsi", "IKP"]], on="Nama Provinsi", how="left")
 
+            # Styling berdasarkan nilai IKP
             def style_function(feature):
-                value = feature["properties"]["Pred_IKP"]
+                value = feature["properties"]["IKP"]
                 if value is None:
                     return {"fillOpacity": 0.3, "weight": 0.5, "color": "gray"}
                 return {
@@ -104,17 +102,30 @@ if uploaded_file:
                     "color": "black"
                 }
 
+            # Tambahkan layer GeoJSON
             folium.GeoJson(
                 gdf,
                 style_function=style_function,
-                tooltip=folium.GeoJsonTooltip(fields=["Provinsi", "Pred_IKP"])
+                tooltip=folium.GeoJsonTooltip(fields=["Nama Provinsi", "IKP"])
             ).add_to(m)
 
+            # Tambahkan colormap (legend)
             colormap.add_to(m)
+
+            # Tampilkan di Streamlit
             st_folium(m, width=700, height=500)
 
         except Exception as e:
             st.error(f"Gagal memuat peta: {e}")
+
+        # Comparative view
+        st.write("#### Comparative View")
+        prov_selected = st.multiselect(
+            "Pilih Provinsi",
+            df["Nama Provinsi"].unique().tolist(),
+            default=["Aceh", "Sumatera Utara"]
+        )
+        st.write("Dipilih:", prov_selected)
 
     # === Kolom Kanan: Dashboard Kebijakan ===
     with col2:
@@ -126,26 +137,60 @@ if uploaded_file:
             - Pengaturan pola tanam & diversifikasi  
             - Investasi infrastruktur irigasi tahan iklim
             """)
-            
-    # --------------------------
-    # Detail Provinsi + Koefisien
-    # --------------------------
-    x_columns = [c for c in df.columns if c.startswith("coef_")]
-    
-    model = GTNNWRWrapper(x_columns, y_column="Pred_IKP")
-    results = model.fit(df)
-    
-    if "coefs" in results:
-        st.subheader("Koefisien Variabel (GTNNWR)")
-        st.dataframe(results["coefs"].head())
 
-    if "true" in results and "pred" in results:
-        st.subheader("True vs Predicted (GTNNWR)")
-        fig, ax = plt.subplots()
-        ax.scatter(results["true"], results["pred"], alpha=0.6)
-        ax.set_xlabel("True")
-        ax.set_ylabel("Predicted")
-        st.pyplot(fig)
+        st.subheader("Quick Tips")
+        st.markdown("""
+        - Pilih 2-3 provinsi untuk membandingkan indikator kunci.  
+        - Gunakan Scenario untuk menguji perubahan Luas Panen, Produktivitas, atau Cadangan Pangan.
+        """)
+
+    # --------------------------
+    # Storytelling Ringkasan
+    # --------------------------
+    st.subheader("Storytelling — Ringkasan Interaktif")
+    st.success("Aceh mengalami stabil/kenaikan IKP dalam 5 tahun terakhir, dipengaruhi oleh Kekeringan, Kebakaran, OPD Blas.")
+
+    # --------------------------
+    # Detail Provinsi + Simulasi
+    # --------------------------
+    st.write("---")
+    prov = st.selectbox("Pilih Provinsi untuk Detail", df["Nama Provinsi"].unique())
+    prov_data = df[df["Nama Provinsi"] == prov].iloc[0]
+
+    col3, col4 = st.columns([2, 1])
+
+    with col3:
+        st.write(f"### {prov} — Indeks Ketahanan Pangan")
+        # tampilkan semua kolom kecuali Nama Provinsi
+        for col in df.columns:
+            if col != "Nama Provinsi":
+                st.metric(col, prov_data[col])
+
+    with col4:
+        st.subheader("Scenario & Simulation")
+        variabel = st.selectbox("Pilih Variabel", [c for c in df.columns if c not in ["Nama Provinsi", "IKP"]])
+        perubahan = st.number_input("Perubahan (%)", value=5, step=1)
+
+        if st.button("Run Simulation"):
+            # Jalankan GTNNWR (dummy wrapper)
+            x_columns = [c for c in df.columns if c not in ["Nama Provinsi", "IKP", "Tahun", "Longitude", "Latitude", "id"]]
+            model = GTNNWRWrapper(x_columns)
+            results = model.fit(df)
+
+            ikp_now = prov_data["IKP"]
+            ikp_simulasi = ikp_now * (1 + perubahan / 100)  # dummy simulasi
+
+            st.metric("IKP saat ini", f"{ikp_now:.2f}")
+            st.metric("IKP simulasi", f"{ikp_simulasi:.2f}")
+            st.caption("Catatan: simulasi ini masih sederhana. Untuk akurasi penuh, hubungkan output GTNNWR.")
+
+            # Plot hasil GTNNWR
+            st.subheader("True vs Predicted (GTNNWR)")
+            fig, ax = plt.subplots()
+            ax.scatter(results["true"], results["pred"], alpha=0.6)
+            ax.set_xlabel("True")
+            ax.set_ylabel("Predicted")
+            st.pyplot(fig)
 
     # --------------------------
     # Export PDF (placeholder)

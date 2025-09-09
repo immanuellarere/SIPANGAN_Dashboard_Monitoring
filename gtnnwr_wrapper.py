@@ -1,4 +1,3 @@
-# gtnnwr_wrapper.py
 import numpy as np
 import pandas as pd
 
@@ -12,10 +11,18 @@ class GTNNWRWrapper:
     - Preprocessing dataset
     - Split train/val/test berdasarkan Tahun
     - Training GTNNWR
-    - Mengambil hasil model termasuk koefisien variabel (beta)
+    - Ambil hasil model termasuk koefisien variabel (beta)
     """
 
     def __init__(self, x_columns, y_column="IKP"):
+        """
+        Parameters
+        ----------
+        x_columns : list
+            Kolom prediktor (misalnya variabel pertanian, bencana, OPD).
+        y_column : str
+            Kolom target (default = IKP).
+        """
         self.x_columns = x_columns
         self.y_column = [y_column]
         self.model = None
@@ -24,48 +31,46 @@ class GTNNWRWrapper:
     def fit(self, data: pd.DataFrame):
         # --- Preprocessing ---
         data = data.rename(columns=lambda x: x.strip().replace(" ", "_"))
-        data["row_id"] = np.arange(len(data))  # ID unik per baris
+        data["id"] = np.arange(len(data))  # ID unik per baris
 
-        # Pastikan ada kolom Provinsi & Tahun
-        if "Provinsi" not in data.columns:
-            raise ValueError("Dataset harus memiliki kolom 'Provinsi'")
-        if "Tahun" not in data.columns:
-            raise ValueError("Dataset harus memiliki kolom 'Tahun'")
+        # Validasi kolom wajib
+        for col in ["Provinsi", "Tahun", "Longitude", "Latitude"]:
+            if col not in data.columns:
+                raise ValueError(f"Dataset harus memiliki kolom '{col}'")
 
-        # Pakai Tahun sebagai waktu
-        data["waktu"] = data["Tahun"]
-
-        # Split data berdasarkan waktu
-        train_data = data[data["waktu"] <= 2022]
-        val_data   = data[data["waktu"] == 2023]
-        test_data  = data[data["waktu"] == 2024]
+        # Split dataset
+        train_data = data[data["Tahun"] <= 2022]
+        val_data   = data[data["Tahun"] == 2023]
+        test_data  = data[data["Tahun"] == 2024]
 
         # Init dataset GTNNWR
-        train_set, val_set, test_set = init_dataset_split(
+        train_dataset, val_dataset, test_dataset = init_dataset_split(
             train_data=train_data,
             val_data=val_data,
             test_data=test_data,
             x_column=self.x_columns,
             y_column=self.y_column,
-            spatial_column=[],          # tidak ada koordinat
-            temp_column=["waktu"],      # gunakan waktu
-            id_column=["row_id"],       # ID unik
+            spatial_column=["Longitude", "Latitude"],  # koordinat spasial
+            temp_column=["Tahun"],                     # dimensi temporal
+            id_column=["id"],                          # ID unik
             use_model="gtnnwr",
-            batch_size=512,
+            batch_size=1024,
             shuffle=False
         )
 
         # Hyperparameter optimizer
         optimizer_params = {
             "scheduler": "MultiStepLR",
-            "scheduler_milestones": [1000, 2000, 3000],
+            "scheduler_milestones": [1000, 2000, 3000, 4000],
             "scheduler_gamma": 0.8,
         }
 
-        # Inisialisasi model
+        # Inisialisasi model GTNNWR
         self.model = GTNNWR_lib(
-            train_set, val_set, test_set,
-            [[3], [256, 128, 64]],  # hidden layers
+            train_dataset,
+            val_dataset,
+            test_dataset,
+            [[3], [512, 256, 64]],   # hidden layers
             drop_out=0.5,
             optimizer="Adadelta",
             optimizer_params=optimizer_params,
@@ -75,26 +80,33 @@ class GTNNWRWrapper:
 
         # Training
         self.model.add_graph()
-        self.model.run(2000, 500)  # runtime lebih singkat biar demo cepat
+        self.model.run(15000, 1000)
 
-        # Ambil hasil
+        # Hasil utama
         self.results = self.model.result()
+        self.results["reg_result"] = self.model.reg_result
 
         # --- Ambil koefisien variabel ---
-        if "beta" in self.results:
-            coefs = pd.DataFrame(self.results["beta"], columns=self.x_columns)
-            coefs["row_id"] = data["row_id"].values
-            coefs["Tahun"] = data["Tahun"].values
-            coefs["Provinsi"] = data["Provinsi"].values
+        if "beta" in self.results and self.results["beta"] is not None:
+            try:
+                coefs = pd.DataFrame(self.results["beta"], columns=self.x_columns)
+                coefs["id"] = data["id"].values
+                coefs["Tahun"] = data["Tahun"].values
+                coefs["Provinsi"] = data["Provinsi"].values
 
-            # bentuk long
-            coefs_long = coefs.melt(
-                id_vars=["Provinsi", "Tahun", "row_id"],
-                value_vars=self.x_columns,
-                var_name="Variabel",
-                value_name="Koefisien"
-            )
+                # Bentuk long format
+                coefs_long = coefs.melt(
+                    id_vars=["Provinsi", "Tahun", "id"],
+                    value_vars=self.x_columns,
+                    var_name="Variabel",
+                    value_name="Koefisien"
+                )
 
-            self.results["coefs_long"] = coefs_long
+                self.results["coefs_long"] = coefs_long
+            except Exception as e:
+                print(f"Gagal memproses koefisien: {e}")
+                self.results["coefs_long"] = pd.DataFrame()
+        else:
+            self.results["coefs_long"] = pd.DataFrame()
 
         return self.results

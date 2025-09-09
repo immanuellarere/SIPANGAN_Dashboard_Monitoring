@@ -125,28 +125,23 @@ if uploaded_file:
             - Pengaturan pola tanam & diversifikasi  
             - Investasi infrastruktur irigasi tahan iklim
             """)
-
+            
     # --------------------------
     # Detail Provinsi + Koefisien
     # --------------------------
-    st.write("---")
-    prov = st.selectbox("Pilih Provinsi untuk Detail", df["Provinsi"].unique())
-    prov_data = df[df["Provinsi"] == prov].iloc[0]
+    from gtnnwr_wrapper import GTNNWRWrapper
 
-    st.write(f"### {prov} — Indeks Ketahanan Pangan")
-    for col in df.columns:
-        if col not in ["Provinsi", "Tahun"]:
-            st.metric(col, prov_data[col])
-
-    # === Jalankan GTNNWR untuk koefisien ===
-    st.subheader("Koefisien Variabel (GTNNWR)")
-
-    x_columns = [c for c in df.columns if c not in ["Provinsi", "IKP", "Tahun", "Longitude", "Latitude", "id"]]
-    model = GTNNWRWrapper(x_columns)
+    # Pilih kolom prediktor
+    x_columns = [c for c in df.columns if c.startswith("coef_")]
+    
+    # Jalankan GTNNWR
+    model = GTNNWRWrapper(x_columns, y_column="Pred_IKP")
     results = model.fit(df)
-
-    coef_df = pd.DataFrame(list(results["coefficients"].items()), columns=["Variabel", "Koefisien"])
-    st.dataframe(coef_df)
+    
+    # Tampilkan hasil koefisien
+    if "coefs" in results:
+        st.subheader("Koefisien Variabel (GTNNWR)")
+        st.dataframe(results["coefs"].head())
 
     # Plot hasil True vs Predicted
     if "true" in results and "pred" in results:

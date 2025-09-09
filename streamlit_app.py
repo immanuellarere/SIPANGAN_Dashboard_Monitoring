@@ -6,7 +6,7 @@ from streamlit_folium import st_folium
 import geopandas as gpd
 import branca.colormap as cm
 
-from gtnnwr import GTNNWRWrapper
+from gtnnwr import GTNNWRWrapper   # pastikan file gtnnwr.py ada di folder yang sama
 
 # --------------------------
 # Konfigurasi Halaman
@@ -25,6 +25,7 @@ st.caption("Statistika & Teknologi untuk Indonesia Emas — Subtema: Krisis Pang
 uploaded_file = st.file_uploader("Upload Data SEC 2025", type=["csv", "xlsx"])
 
 if uploaded_file:
+    # Baca file
     if uploaded_file.name.endswith(".csv"):
         df = pd.read_csv(uploaded_file)
     else:
@@ -38,90 +39,95 @@ if uploaded_file:
     st.dataframe(df.head())
 
     # --------------------------
-# Layout 2 kolom utama
-# --------------------------
-col1, col2 = st.columns([2, 1])
+    # Layout 2 kolom utama
+    # --------------------------
+    col1, col2 = st.columns([2, 1])
 
-with col1:
-    st.subheader("Peta Indonesia — IKP per Provinsi")
+    # === Kolom Kiri: Peta ===
+    with col1:
+        st.subheader("Peta Indonesia — IKP per Provinsi")
 
-    try:
-        # === Pilih Tahun ===
-        tahun_list = sorted(df["Tahun"].unique())
-        tahun_dipilih = st.selectbox("Pilih Tahun", tahun_list)
+        try:
+            # Pilih Tahun
+            tahun_list = sorted(df["Tahun"].unique())
+            tahun_dipilih = st.selectbox("Pilih Tahun", tahun_list)
 
-        # Filter data sesuai tahun
-        df_filtered = df[df["Tahun"] == tahun_dipilih]
+            # Filter data sesuai tahun
+            df_filtered = df[df["Tahun"] == tahun_dipilih]
 
-        # Load GeoJSON provinsi Indonesia
-        url = "https://raw.githubusercontent.com/ans-4175/peta-indonesia-geojson/master/indonesia-prov.geojson"
-        gdf = gpd.read_file(url)
+            # Load GeoJSON provinsi Indonesia
+            url = "https://raw.githubusercontent.com/ans-4175/peta-indonesia-geojson/master/indonesia-prov.geojson"
+            gdf = gpd.read_file(url)
 
-        # Samakan format nama provinsi
-        gdf["Nama Provinsi"] = gdf["Propinsi"].str.title()
-        df_filtered["Nama Provinsi"] = df_filtered["Nama Provinsi"].str.title()
+            # Samakan format nama provinsi
+            gdf["Nama Provinsi"] = gdf["Propinsi"].str.title()
+            df_filtered["Nama Provinsi"] = df_filtered["Nama Provinsi"].str.title()
 
-        # --- cek nilai IKP ---
-        ikp_min = df_filtered["IKP"].min()
-        ikp_max = df_filtered["IKP"].max()
-        st.write(f"Range IKP ({tahun_dipilih}): {ikp_min:.2f} – {ikp_max:.2f}")
+            # Cek range IKP
+            ikp_min = df_filtered["IKP"].min()
+            ikp_max = df_filtered["IKP"].max()
+            st.write(f"Range IKP ({tahun_dipilih}): {ikp_min:.2f} – {ikp_max:.2f}")
 
-        # --- definisi bins provinsi sesuai tabel ---
-        bins = [0, 37.61, 48.27, 57.11, 65.96, 74.40]
-        if ikp_max > bins[-1]:
-            bins.append(ikp_max + 1)
-        else:
-            bins.append(100)
+            # Definisi bins provinsi sesuai tabel
+            bins = [0, 37.61, 48.27, 57.11, 65.96, 74.40]
+            if ikp_max > bins[-1]:
+                bins.append(ikp_max + 1)
+            else:
+                bins.append(100)
 
-        # definisi colormap custom sesuai tabel
-        import branca.colormap as cm
-        colormap = cm.StepColormap(
-            colors=['#4B0000', '#FF3333', '#FF9999', '#CCFF99', '#66CC66', '#006600'],
-            vmin=bins[0],
-            vmax=bins[-1],
-            index=bins,
-            caption="Indeks Ketahanan Pangan (IKP)"
-        )
+            # Colormap custom
+            colormap = cm.StepColormap(
+                colors=['#4B0000', '#FF3333', '#FF9999', '#CCFF99', '#66CC66', '#006600'],
+                vmin=bins[0],
+                vmax=bins[-1],
+                index=bins,
+                caption="Indeks Ketahanan Pangan (IKP)"
+            )
 
-        # bikin map kosong
-        m = folium.Map(location=[-2.5, 118], zoom_start=5)
+            # Bikin map kosong
+            m = folium.Map(location=[-2.5, 118], zoom_start=5)
 
-        # gabungkan data IKP ke GeoJSON
-        gdf = gdf.merge(df_filtered[["Nama Provinsi", "IKP"]], on="Nama Provinsi", how="left")
+            # Gabungkan data IKP ke GeoJSON
+            gdf = gdf.merge(df_filtered[["Nama Provinsi", "IKP"]], on="Nama Provinsi", how="left")
 
-        # styling berdasarkan nilai IKP
-        def style_function(feature):
-            value = feature["properties"]["IKP"]
-            if value is None:
-                return {"fillOpacity": 0.3, "weight": 0.5, "color": "gray"}
-            return {
-                "fillColor": colormap(value),
-                "fillOpacity": 0.7,
-                "weight": 0.5,
-                "color": "black"
-            }
+            # Styling berdasarkan nilai IKP
+            def style_function(feature):
+                value = feature["properties"]["IKP"]
+                if value is None:
+                    return {"fillOpacity": 0.3, "weight": 0.5, "color": "gray"}
+                return {
+                    "fillColor": colormap(value),
+                    "fillOpacity": 0.7,
+                    "weight": 0.5,
+                    "color": "black"
+                }
 
-        # tambahkan layer geojson
-        folium.GeoJson(
-            gdf,
-            style_function=style_function,
-            tooltip=folium.GeoJsonTooltip(fields=["Nama Provinsi", "IKP"])
-        ).add_to(m)
+            # Tambahkan layer GeoJSON
+            folium.GeoJson(
+                gdf,
+                style_function=style_function,
+                tooltip=folium.GeoJsonTooltip(fields=["Nama Provinsi", "IKP"])
+            ).add_to(m)
 
-        # tambahkan colormap (legend)
-        colormap.add_to(m)
+            # Tambahkan colormap (legend)
+            colormap.add_to(m)
 
-        # tampilkan di Streamlit
-        st_folium(m, width=700, height=500)
+            # Tampilkan di Streamlit
+            st_folium(m, width=700, height=500)
 
-    except Exception as e:
-        st.error(f"Gagal memuat peta: {e}")
+        except Exception as e:
+            st.error(f"Gagal memuat peta: {e}")
 
         # Comparative view
         st.write("#### Comparative View")
-        prov_selected = st.multiselect("Pilih Provinsi", df["Nama Provinsi"].unique().tolist(), default=["Aceh", "Sumatera Utara"])
+        prov_selected = st.multiselect(
+            "Pilih Provinsi",
+            df["Nama Provinsi"].unique().tolist(),
+            default=["Aceh", "Sumatera Utara"]
+        )
         st.write("Dipilih:", prov_selected)
 
+    # === Kolom Kanan: Dashboard Kebijakan ===
     with col2:
         st.subheader("Policy & Action Dashboard")
         kebijakan = st.selectbox("Filter kebijakan", ["Semua", "Jangka Pendek", "Jangka Menengah", "Jangka Panjang"])
@@ -166,7 +172,7 @@ with col1:
         perubahan = st.number_input("Perubahan (%)", value=5, step=1)
 
         if st.button("Run Simulation"):
-            # Jalankan GTNNWR
+            # Jalankan GTNNWR (dummy wrapper)
             x_columns = [c for c in df.columns if c not in ["Nama Provinsi", "IKP", "Tahun", "Longitude", "Latitude", "id"]]
             model = GTNNWRWrapper(x_columns)
             results = model.fit(df)

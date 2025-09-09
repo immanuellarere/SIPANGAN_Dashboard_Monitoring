@@ -1,20 +1,12 @@
 import streamlit as st
 import pandas as pd
-import math
-from pathlib import Path
-
-import streamlit as st
-import pandas as pd
-import matplotlib.pyplot as plt
-from gtnnwr import GTNNWRWrapper   # import class GTNNWRWrapper dari file gtnnwr.py
-
-import streamlit as st
-import pandas as pd
 import matplotlib.pyplot as plt
 import folium
 from streamlit_folium import st_folium
 import geopandas as gpd
-from gtnnwr import GTNNWRWrapper   # class wrapper GTNNWR dari file gtnnwr.py
+import branca.colormap as cm
+
+from gtnnwr import GTNNWRWrapper
 
 # --------------------------
 # Konfigurasi Halaman

@@ -33,6 +33,7 @@ try:
     else:
         df = pd.read_excel(DATA_PATH, engine="openpyxl")
 
+    # preprocessing dataset
     df = df.fillna(0)
     df = df.rename(columns=lambda x: x.strip().replace(" ", "_"))
     df["id"] = range(len(df))
@@ -74,6 +75,7 @@ try:
 
     df_filtered = df[df["Tahun"] == tahun_peta].copy()
 
+    # load geojson provinsi Indonesia
     url = "https://raw.githubusercontent.com/ans-4175/peta-indonesia-geojson/master/indonesia-prov.geojson"
     gdf = gpd.read_file(url)
 
@@ -120,13 +122,14 @@ st.write("---")
 st.subheader("🤖 Analisis GTNNWR (Load Pretrained TorchScript)")
 
 try:
+    # load wrapper
     model = GTNNWRWrapper(prov_col=prov_col)
     model.load(MODEL_PATH)
 
-    # Prediksi
+    # prediksi
     df_pred = model.predict(df)
 
-    # Koefisien
+    # ambil koefisien
     coef_df = model.get_coefs(df_pred)
     if coef_df is not None:
         coef_filtered = coef_df[(coef_df["Tahun"] >= 2019) & (coef_df["Tahun"] <= 2024)]
@@ -152,16 +155,17 @@ except Exception as e:
 st.write("---")
 st.subheader("📍 Detail Provinsi")
 
-prov = st.selectbox("Pilih Provinsi", df[prov_col].unique())
-prov_data = df_pred[df_pred[prov_col] == prov]
-
-st.write(f"### {prov} — IKP 2019–2024")
-st.dataframe(prov_data[["Tahun", "IKP", "IKP_Prediksi"]])
-
 try:
+    prov = st.selectbox("Pilih Provinsi", df[prov_col].unique())
+    prov_data = df_pred[df_pred[prov_col] == prov]
+
+    st.write(f"### {prov} — IKP 2019–2024")
+    st.dataframe(prov_data[["Tahun", "IKP", "IKP_Prediksi"]])
+
     if coef_df is not None:
         st.write(f"### {prov} — Koefisien GTNNWR 2019–2024")
         coef_prov = coef_df[coef_df[prov_col] == prov]
         st.dataframe(coef_prov)
-except:
-    st.warning("⚠️ Koefisien provinsi tidak tersedia.")
+
+except Exception:
+    st.warning("⚠️ Data koefisien provinsi tidak tersedia.")

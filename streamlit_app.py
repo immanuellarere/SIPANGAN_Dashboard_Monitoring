@@ -6,7 +6,7 @@ from streamlit_folium import st_folium
 import geopandas as gpd
 import branca.colormap as cm
 
-from gtnnwr_wrapper import GTNNWRWrapper   # wrapper GTNNWR
+from gtnnwr_wrapper import GTNNWRWrapper   # wrapper GTNNWR (TorchScript)
 
 
 # --------------------------
@@ -18,14 +18,14 @@ st.set_page_config(
 )
 
 st.title("📊 SIPANGAN Dashboard Monitoring")
-st.caption("Monitoring Indeks Ketahanan Pangan (IKP) berbasis GTNNWR Pretrained")
+st.caption("Monitoring Indeks Ketahanan Pangan (IKP) berbasis GTNNWR Pretrained (TorchScript .pt)")
 
 
 # --------------------------
 # Load Dataset Lokal
 # --------------------------
-DATA_PATH = "datasec.xlsx"       # dataset lokal
-MODEL_PATH = "./GTNNWR_DSi_model.pth"   # pretrained model (.pth)
+DATA_PATH = "datasec.xlsx"         # dataset lokal
+MODEL_PATH = "GTNNWR_DSi.pt"     # pretrained TorchScript model (.pt)
 
 try:
     if DATA_PATH.endswith(".csv"):
@@ -121,24 +121,33 @@ except Exception as e:
 
 
 # --------------------------
-# Analisis GTNNWR (Load dari .pth)
+# Analisis GTNNWR (TorchScript .pt)
 # --------------------------
 st.write("---")
-st.subheader("🤖 Analisis GTNNWR (Load Pretrained)")
+st.subheader("🤖 Analisis GTNNWR (Load Pretrained TorchScript)")
 
 try:
     x_columns = [c for c in df.columns if c not in
                  [prov_col, "Tahun", "IKP", "Longitude", "Latitude", "id"]]
 
-    # Load pretrained model
+    # Load pretrained TorchScript model
     model = GTNNWRWrapper(x_columns, y_column="IKP")
-    model.load_pretrained(df, MODEL_PATH)
+    model.load(MODEL_PATH)
 
-    # Ambil koefisien per provinsi per tahun
+    # Prediksi semua data
+    y_pred = model.predict(df)
+    df["IKP_Prediksi"] = y_pred
+
+    # Ambil koefisien (layer terakhir)
     coef_df = model.get_coefs()
+    if coef_df is not None:
+        # duplikasi ke tiap baris df (provinsi + tahun)
+        coef_df = pd.concat([coef_df]*len(df), ignore_index=True)
+        coef_df[prov_col] = df[prov_col].values
+        coef_df["Tahun"] = df["Tahun"].values
 
-    if coef_df is not None and not coef_df.empty:
         coef_filtered = coef_df[(coef_df["Tahun"] >= 2019) & (coef_df["Tahun"] <= 2024)]
+
         st.subheader("📑 Koefisien GTNNWR per Provinsi (2019–2024)")
         st.dataframe(coef_filtered)
 
@@ -166,7 +175,7 @@ prov = st.selectbox("Pilih Provinsi", df[prov_col].unique())
 prov_data = df[df[prov_col] == prov]
 
 st.write(f"### {prov} — IKP 2019–2024")
-st.dataframe(prov_data[["Tahun", "IKP"]])
+st.dataframe(prov_data[["Tahun", "IKP", "IKP_Prediksi"]])
 
 # Koefisien provinsi terpilih
 try:

@@ -4,11 +4,21 @@ import torch
 
 
 class GTNNWRWrapper:
-    def __init__(self, x_columns, y_column="IKP", prov_col="Provinsi"):
-        self.x_columns = x_columns
+    def __init__(self, y_column="IKP", prov_col="Provinsi"):
+        self.x_columns = None
         self.y_column = [y_column]
         self.prov_col = prov_col
         self.model = None
+
+    # ----------------------
+    # Tentukan x_columns otomatis dari DataFrame
+    # ----------------------
+    def _set_x_columns(self, data: pd.DataFrame):
+        exclude_cols = [self.prov_col, "Tahun", *self.y_column,
+                        "Longitude", "Latitude", "id"]
+        self.x_columns = [c for c in data.columns if c not in exclude_cols]
+        if len(self.x_columns) == 0:
+            raise ValueError("❌ Tidak ada kolom fitur (x_columns) yang valid ditemukan!")
 
     # ----------------------
     # Load model TorchScript
@@ -26,10 +36,8 @@ class GTNNWRWrapper:
         if self.model is None:
             raise ValueError("Model belum diload.")
 
-        # cek kolom input
-        for col in self.x_columns:
-            if col not in data.columns:
-                raise ValueError(f"Kolom '{col}' tidak ada di DataFrame")
+        if self.x_columns is None:
+            self._set_x_columns(data)
 
         # convert ke tensor
         x_input = torch.tensor(
@@ -55,6 +63,9 @@ class GTNNWRWrapper:
     def get_coefs(self, data: pd.DataFrame):
         if self.model is None:
             raise ValueError("Model belum diload.")
+
+        if self.x_columns is None:
+            self._set_x_columns(data)
 
         coefs = {}
         for name, param in self.model.named_parameters():

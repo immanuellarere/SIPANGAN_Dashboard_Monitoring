@@ -6,7 +6,7 @@ from streamlit_folium import st_folium
 import geopandas as gpd
 import branca.colormap as cm
 
-from gtnnwr_wrapper import GTNNWRWrapper   # wrapper GTNNWR (TorchScript)
+from gtnnwr_wrapper import GTNNWRWrapper
 
 
 # --------------------------
@@ -22,10 +22,10 @@ st.caption("Monitoring Indeks Ketahanan Pangan (IKP) berbasis GTNNWR Pretrained 
 
 
 # --------------------------
-# Load Dataset Lokal
+# Load Dataset
 # --------------------------
-DATA_PATH = "datasec.xlsx"         # dataset lokal
-MODEL_PATH = "GTNNWR_DSi.pt"       # pretrained TorchScript model (.pt)
+DATA_PATH = "datasec.xlsx"
+MODEL_PATH = "GTNNWR_DSi.pt"
 
 try:
     if DATA_PATH.endswith(".csv"):
@@ -63,7 +63,7 @@ st.dataframe(df.head())
 
 
 # --------------------------
-# Peta IKP per Provinsi
+# Peta IKP
 # --------------------------
 st.write("---")
 st.subheader("🗺️ Peta Indonesia — IKP per Provinsi")
@@ -93,23 +93,16 @@ try:
     )
 
     m = folium.Map(location=[-2.5, 118], zoom_start=5)
-
     gdf = gdf.merge(df_filtered[[prov_col, "IKP"]], on=prov_col, how="left")
-
-    def style_function(feature):
-        value = feature["properties"]["IKP"]
-        if value is None:
-            return {"fillOpacity": 0.3, "weight": 0.5, "color": "gray"}
-        return {
-            "fillColor": colormap(value),
-            "fillOpacity": 0.7,
-            "weight": 0.5,
-            "color": "black"
-        }
 
     folium.GeoJson(
         gdf,
-        style_function=style_function,
+        style_function=lambda f: {
+            "fillColor": colormap(f["properties"]["IKP"]) if f["properties"]["IKP"] else "gray",
+            "fillOpacity": 0.7,
+            "weight": 0.5,
+            "color": "black"
+        },
         tooltip=folium.GeoJsonTooltip(fields=[prov_col, "IKP"])
     ).add_to(m)
 
@@ -121,28 +114,25 @@ except Exception as e:
 
 
 # --------------------------
-# Analisis GTNNWR (TorchScript .pt)
+# Analisis GTNNWR
 # --------------------------
 st.write("---")
 st.subheader("🤖 Analisis GTNNWR (Load Pretrained TorchScript)")
 
 try:
-    # Load pretrained TorchScript model
-    model = GTNNWRWrapper(y_column="IKP", prov_col=prov_col)
+    model = GTNNWRWrapper(prov_col=prov_col)
     model.load(MODEL_PATH)
 
-    # Prediksi semua data
+    # Prediksi
     df_pred = model.predict(df)
 
-    # Ambil koefisien (layer terakhir)
+    # Koefisien
     coef_df = model.get_coefs(df_pred)
     if coef_df is not None:
         coef_filtered = coef_df[(coef_df["Tahun"] >= 2019) & (coef_df["Tahun"] <= 2024)]
-
         st.subheader("📑 Koefisien GTNNWR per Provinsi (2019–2024)")
         st.dataframe(coef_filtered)
 
-        # Download CSV
         st.download_button(
             label="📥 Download Koefisien 2019–2024 (CSV)",
             data=coef_filtered.to_csv(index=False).encode("utf-8"),
@@ -168,7 +158,6 @@ prov_data = df_pred[df_pred[prov_col] == prov]
 st.write(f"### {prov} — IKP 2019–2024")
 st.dataframe(prov_data[["Tahun", "IKP", "IKP_Prediksi"]])
 
-# Koefisien provinsi terpilih
 try:
     if coef_df is not None:
         st.write(f"### {prov} — Koefisien GTNNWR 2019–2024")

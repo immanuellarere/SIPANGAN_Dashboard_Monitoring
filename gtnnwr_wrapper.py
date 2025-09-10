@@ -7,21 +7,12 @@ from gnnwr.models import GTNNWR as GTNNWR_lib
 import torch.nn as nn
 
 
-# --------------------------
-# PATCH bug Identity.p
-# --------------------------
+# --- PATCH bug Identity.p (library issue) ---
 if not hasattr(nn.Identity, "p"):
     nn.Identity.p = 0.0
 
 
 class GTNNWRWrapper:
-    """
-    Wrapper untuk GTNNWR supaya lebih stabil di Streamlit.
-    - Semua hasil evaluasi dikonversi jadi Python native (float/int).
-    - Prediksi dijamin numpy array 1D.
-    - Ada fallback evaluasi manual kalau hasil model kosong.
-    """
-
     def __init__(self, x_columns, y_column="IKP"):
         self.x_columns = x_columns
         self.y_column = [y_column]
@@ -30,9 +21,12 @@ class GTNNWRWrapper:
         self.test_dataset = None
 
     def fit(self, data: pd.DataFrame, max_epoch=2000, print_step=200):
-        # --------------------------
-        # Preprocessing
-        # --------------------------
+        """
+        Latih model GTNNWR dan simpan hasil evaluasi.
+        """
+        torch.autograd.set_detect_anomaly(False)
+
+        # --- Preprocess ---
         data = data.rename(columns=lambda x: x.strip().replace(" ", "_"))
         data["id"] = np.arange(len(data))
 
@@ -48,9 +42,7 @@ class GTNNWRWrapper:
             if col not in data.columns:
                 raise ValueError(f"Dataset harus punya kolom '{col}'")
 
-        # --------------------------
-        # Split train/val/test
-        # --------------------------
+        # --- Split ---
         train_data = data[data["Tahun"] <= 2022]
         val_data   = data[data["Tahun"] == 2023]
         test_data  = data[data["Tahun"] == 2024]
@@ -58,9 +50,7 @@ class GTNNWRWrapper:
         if train_data.empty or val_data.empty or test_data.empty:
             raise ValueError("Data tidak lengkap (butuh Tahun ≤2022, 2023, 2024).")
 
-        # --------------------------
-        # Init dataset GTNNWR
-        # --------------------------
+        # --- Dataset GTNNWR ---
         train_dataset, val_dataset, test_dataset = init_dataset_split(
             train_data=train_data,
             val_data=val_data,
@@ -76,15 +66,13 @@ class GTNNWRWrapper:
         )
         self.test_dataset = test_dataset
 
-        # --------------------------
-        # Inisialisasi model GTNNWR
-        # --------------------------
+        # --- Model ---
         self.model = GTNNWR_lib(
             train_dataset,
             val_dataset,
             test_dataset,
             [[3], [128, 64]],   # hidden layers
-            drop_out=1e-8,      # fix Identity bug
+            drop_out=1e-8,      # hindari bug Identity.p
             optimizer="Adam",
             optimizer_params={
                 "scheduler": "MultiStepLR",
@@ -95,32 +83,26 @@ class GTNNWRWrapper:
             model_name="GTNNWR_DSi"
         )
 
-        # --------------------------
-        # Training
-        # --------------------------
+        # --- Train ---
         try:
             self.model.add_graph()
             self.model.run(max_epoch, print_step)
         except Exception as e:
             print(f"[ERROR] Training gagal: {e}")
-            self.results = {}
+            self.results = {"ERROR": str(e)}
             return self.results
 
-        # --------------------------
-        # Ambil hasil evaluasi
-        # --------------------------
+        # --- Ambil hasil dari library ---
         result = {}
         try:
             result = self.model.result()
-        except Exception:
+        except:
             try:
                 result = self.model.reg_result
-            except Exception:
+            except:
                 result = {}
 
-        # --------------------------
-        # Fallback evaluasi manual
-        # --------------------------
+        # --- Fallback evaluasi manual ---
         if not result:
             try:
                 y_true = test_data[self.y_column].values.flatten()
@@ -135,26 +117,31 @@ class GTNNWRWrapper:
                     }
             except Exception as e:
                 print(f"[ERROR] Evaluasi manual gagal: {e}")
+                result = {}
 
-        # --------------------------
-        # Konversi hasil ke Python murni
-        # --------------------------
+        # --- Konversi semua ke Python murni (bukan numpy) ---
         clean_result = {}
+        if result is None:
+            result = {}
         for k, v in result.items():
-            if isinstance(v, (np.generic, np.ndarray)):
+            if isinstance(v, (np.generic,)):
+                clean_result[k] = float(v)
+            elif isinstance(v, np.ndarray):
                 clean_result[k] = float(np.mean(v))
             elif isinstance(v, (list, tuple)):
                 clean_result[k] = [float(x) for x in v]
             else:
                 clean_result[k] = v
 
+        if not clean_result:
+            clean_result = {"INFO": "Evaluasi tidak tersedia"}
+
         self.results = clean_result
         return self.results
 
     def predict(self, dataset=None):
         """
-        Prediksi menggunakan model yang sudah dilatih.
-        Output selalu numpy array 1D.
+        Prediksi data test (default) atau dataset lain.
         """
         if self.model is None:
             raise ValueError("Model belum dilatih. Jalankan .fit() dulu.")
@@ -166,7 +153,7 @@ class GTNNWRWrapper:
 
         try:
             y_pred = self.model.predict(dataset)
-            return np.array(y_pred).flatten()
+            return np.array(y_pred).flatten().astype(float)  # pastikan 1D float
         except Exception as e:
             print(f"[ERROR] Prediksi gagal: {e}")
             return None

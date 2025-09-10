@@ -4,9 +4,10 @@ import torch
 
 
 class GTNNWRWrapper:
-    def __init__(self, x_columns, y_column="IKP"):
+    def __init__(self, x_columns, y_column="IKP", prov_col="Provinsi"):
         self.x_columns = x_columns
         self.y_column = [y_column]
+        self.prov_col = prov_col
         self.model = None
 
     # ----------------------
@@ -25,27 +26,33 @@ class GTNNWRWrapper:
         if self.model is None:
             raise ValueError("Model belum diload.")
 
-        # pastikan kolom input ada
+        # cek kolom input
         for col in self.x_columns:
             if col not in data.columns:
                 raise ValueError(f"Kolom '{col}' tidak ada di DataFrame")
 
-        # ambil fitur & convert ke tensor
+        # convert ke tensor
         x_input = torch.tensor(
             data[self.x_columns].values,
             dtype=torch.float32
         )
 
-        # prediksi
+        # reshape -> (batch, 1, features) jika perlu
+        if x_input.dim() == 2:
+            x_input = x_input.unsqueeze(1)
+
         with torch.no_grad():
             y_pred = self.model(x_input)
 
-        return np.array(y_pred).flatten()
+        # masukkan hasil prediksi ke df
+        data = data.copy()
+        data["IKP_Prediksi"] = np.array(y_pred).flatten()
+        return data
 
     # ----------------------
-    # Ambil koefisien layer terakhir
+    # Ambil koefisien layer terakhir + merge ke provinsi/tahun
     # ----------------------
-    def get_coefs(self):
+    def get_coefs(self, data: pd.DataFrame):
         if self.model is None:
             raise ValueError("Model belum diload.")
 
@@ -58,11 +65,17 @@ class GTNNWRWrapper:
             print("[WARNING] Tidak ditemukan layer linear dengan weight")
             return None
 
-        # ambil layer terakhir
+        # ambil bobot terakhir
         last_layer_name = list(coefs.keys())[-1]
         coef_matrix = coefs[last_layer_name]
 
-        # buat DataFrame
-        df = pd.DataFrame(coef_matrix, columns=self.x_columns)
-        df["Intercept"] = 0.0  # intercept tidak otomatis tersimpan
-        return df
+        # buat dataframe koefisien
+        coef_df = pd.DataFrame(coef_matrix, columns=self.x_columns)
+        coef_df["Intercept"] = 0.0
+
+        # duplikasi sesuai jumlah baris dataset
+        coef_df = pd.concat([coef_df]*len(data), ignore_index=True)
+        coef_df[self.prov_col] = data[self.prov_col].values
+        coef_df["Tahun"] = data["Tahun"].values
+
+        return coef_df

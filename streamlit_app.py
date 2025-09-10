@@ -25,7 +25,7 @@ st.caption("Monitoring Indeks Ketahanan Pangan (IKP) berbasis GTNNWR Pretrained 
 # Load Dataset Lokal
 # --------------------------
 DATA_PATH = "datasec.xlsx"         # dataset lokal
-MODEL_PATH = "GTNNWR_DSi.pt"     # pretrained TorchScript model (.pt)
+MODEL_PATH = "GTNNWR_DSi.pt"       # pretrained TorchScript model (.pt)
 
 try:
     if DATA_PATH.endswith(".csv"):
@@ -38,7 +38,7 @@ try:
     df["id"] = range(len(df))
 
 except Exception as e:
-    st.error(f"❌ Gagal membaca dataset SEC 2025: {e}")
+    st.error(f"❌ Gagal membaca dataset: {e}")
     st.stop()
 
 
@@ -127,25 +127,16 @@ st.write("---")
 st.subheader("🤖 Analisis GTNNWR (Load Pretrained TorchScript)")
 
 try:
-    x_columns = [c for c in df.columns if c not in
-                 [prov_col, "Tahun", "IKP", "Longitude", "Latitude", "id"]]
-
     # Load pretrained TorchScript model
-    model = GTNNWRWrapper(x_columns, y_column="IKP")
+    model = GTNNWRWrapper(y_column="IKP", prov_col=prov_col)
     model.load(MODEL_PATH)
 
     # Prediksi semua data
-    y_pred = model.predict(df)
-    df["IKP_Prediksi"] = y_pred
+    df_pred = model.predict(df)
 
     # Ambil koefisien (layer terakhir)
-    coef_df = model.get_coefs()
+    coef_df = model.get_coefs(df_pred)
     if coef_df is not None:
-        # duplikasi ke tiap baris df (provinsi + tahun)
-        coef_df = pd.concat([coef_df]*len(df), ignore_index=True)
-        coef_df[prov_col] = df[prov_col].values
-        coef_df["Tahun"] = df["Tahun"].values
-
         coef_filtered = coef_df[(coef_df["Tahun"] >= 2019) & (coef_df["Tahun"] <= 2024)]
 
         st.subheader("📑 Koefisien GTNNWR per Provinsi (2019–2024)")
@@ -172,7 +163,7 @@ st.write("---")
 st.subheader("📍 Detail Provinsi")
 
 prov = st.selectbox("Pilih Provinsi", df[prov_col].unique())
-prov_data = df[df[prov_col] == prov]
+prov_data = df_pred[df_pred[prov_col] == prov]
 
 st.write(f"### {prov} — IKP 2019–2024")
 st.dataframe(prov_data[["Tahun", "IKP", "IKP_Prediksi"]])

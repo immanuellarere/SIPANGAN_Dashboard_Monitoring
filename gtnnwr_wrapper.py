@@ -20,6 +20,7 @@ class GTNNWRWrapper:
         self.y_column = [y_column]
         self.model = None
         self.results = {}
+        self.test_dataset = None  # simpan test set untuk prediksi
 
     def fit(self, data: pd.DataFrame, max_epoch=2000, print_step=200):
         """
@@ -37,7 +38,15 @@ class GTNNWRWrapper:
         data = data.rename(columns=lambda x: x.strip().replace(" ", "_"))
         data["id"] = np.arange(len(data))
 
-        required_cols = ["Provinsi", "Tahun", "Longitude", "Latitude"]
+        # Dukungan kolom "Provinsi" atau "Nama_Provinsi"
+        if "Provinsi" in data.columns:
+            prov_col = "Provinsi"
+        elif "Nama_Provinsi" in data.columns:
+            prov_col = "Nama_Provinsi"
+        else:
+            raise ValueError("Dataset harus memiliki kolom 'Provinsi' atau 'Nama_Provinsi'")
+
+        required_cols = [prov_col, "Tahun", "Longitude", "Latitude"]
         for col in required_cols:
             if col not in data.columns:
                 raise ValueError(f"Dataset harus memiliki kolom '{col}'")
@@ -68,6 +77,7 @@ class GTNNWRWrapper:
             batch_size=512,
             shuffle=False
         )
+        self.test_dataset = test_dataset
 
         # --------------------------
         # Hyperparameter optimizer
@@ -86,8 +96,8 @@ class GTNNWRWrapper:
             val_dataset,
             test_dataset,
             [[3], [128, 64]],   # hidden layers
-            drop_out=0.5,       # jangan inplace
-            optimizer="Adam",   # lebih stabil daripada Adadelta
+            drop_out=0.0,       # aman (hindari bug Identity.p)
+            optimizer="Adam",
             optimizer_params=optimizer_params,
             write_path="./gtnnwr_runs",
             model_name="GTNNWR_DSi"
@@ -96,8 +106,13 @@ class GTNNWRWrapper:
         # --------------------------
         # Training (dengan autograd)
         # --------------------------
-        self.model.add_graph()
-        self.model.run(max_epoch, print_step)
+        try:
+            self.model.add_graph()
+            self.model.run(max_epoch, print_step)
+        except Exception as e:
+            print(f"[ERROR] Training gagal: {e}")
+            self.results = {}
+            return self.results
 
         # --------------------------
         # Ambil hasil evaluasi
@@ -121,7 +136,7 @@ class GTNNWRWrapper:
         if not raw_result:
             try:
                 y_true = test_data[self.y_column].values
-                y_pred = self.model.predict(test_dataset)
+                y_pred = self.predict()
 
                 r2 = r2_score(y_true, y_pred)
                 mse = mean_squared_error(y_true, y_pred)
@@ -138,3 +153,22 @@ class GTNNWRWrapper:
 
         self.results = raw_result
         return self.results
+
+    def predict(self, dataset=None):
+        """
+        Prediksi menggunakan model yang sudah dilatih.
+        """
+        if self.model is None:
+            raise ValueError("Model belum dilatih. Jalankan .fit() dulu.")
+
+        if dataset is None:
+            dataset = self.test_dataset
+        if dataset is None:
+            raise ValueError("Dataset test tidak tersedia.")
+
+        try:
+            y_pred = self.model.predict(dataset)
+            return np.array(y_pred)
+        except Exception as e:
+            print(f"[ERROR] Prediksi gagal: {e}")
+            return None

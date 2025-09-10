@@ -5,6 +5,14 @@ from sklearn.metrics import r2_score, mean_squared_error
 
 from gnnwr.datasets import init_dataset_split
 from gnnwr.models import GTNNWR as GTNNWR_lib
+import torch.nn as nn
+
+
+# --------------------------
+# Patch untuk bug dropout nn.Identity di gnnwr
+# --------------------------
+if not hasattr(nn.Identity, "p"):
+    nn.Identity.p = 0.0
 
 
 class GTNNWRWrapper:
@@ -26,11 +34,8 @@ class GTNNWRWrapper:
         """
         Latih model GTNNWR.
         """
-
-        # --------------------------
-        # Debug PyTorch: aktifkan anomaly detection
-        # --------------------------
-        torch.autograd.set_detect_anomaly(True)
+        # Debug PyTorch
+        torch.autograd.set_detect_anomaly(False)
 
         # --------------------------
         # Preprocessing
@@ -96,7 +101,7 @@ class GTNNWRWrapper:
             val_dataset,
             test_dataset,
             [[3], [128, 64]],   # hidden layers
-            drop_out=0.5,       # aman (hindari bug Identity.p)
+            drop_out=1e-8,      # fix bug Identity.p (bukan 0, tapi sangat kecil)
             optimizer="Adam",
             optimizer_params=optimizer_params,
             write_path="./gtnnwr_runs",
@@ -109,6 +114,7 @@ class GTNNWRWrapper:
         try:
             self.model.add_graph()
             self.model.run(max_epoch, print_step)
+            print("[INFO] Training selesai tanpa error")
         except Exception as e:
             print(f"[ERROR] Training gagal: {e}")
             self.results = {}
@@ -120,6 +126,7 @@ class GTNNWRWrapper:
         raw_result = {}
         try:
             raw_result = self.model.result()
+            print("[INFO] Hasil evaluasi diperoleh dari model.result()")
         except Exception as e:
             print(f"[WARNING] result() gagal: {e}")
 
@@ -138,15 +145,16 @@ class GTNNWRWrapper:
                 y_true = test_data[self.y_column].values
                 y_pred = self.predict()
 
-                r2 = r2_score(y_true, y_pred)
-                mse = mean_squared_error(y_true, y_pred)
+                if y_pred is not None:
+                    r2 = r2_score(y_true, y_pred)
+                    mse = mean_squared_error(y_true, y_pred)
 
-                raw_result = {
-                    "R2": float(r2),
-                    "MSE": float(mse),
-                    "N_test": int(len(y_true))
-                }
-                print("[INFO] Hasil evaluasi dihitung manual (R², MSE)")
+                    raw_result = {
+                        "R2": float(r2),
+                        "MSE": float(mse),
+                        "N_test": int(len(y_true))
+                    }
+                    print("[INFO] Hasil evaluasi dihitung manual (R², MSE)")
             except Exception as e:
                 print(f"[ERROR] Evaluasi manual gagal: {e}")
                 raw_result = {}

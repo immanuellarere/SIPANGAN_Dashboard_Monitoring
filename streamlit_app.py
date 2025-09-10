@@ -23,7 +23,7 @@ st.title("SIPANGAN Dashboard Monitoring")
 # --------------------------
 # Load Dataset Lokal
 # --------------------------
-DATA_PATH = "data/Data SEC 2025 (2).xlsx"
+DATA_PATH = "data/datasec.xlsx"
 
 try:
     if DATA_PATH.endswith(".csv"):

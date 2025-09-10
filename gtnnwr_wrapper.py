@@ -96,7 +96,7 @@ class GTNNWRWrapper:
             val_dataset,
             test_dataset,
             [[3], [128, 64]],   # hidden layers
-            drop_out=0.0,       # aman (hindari bug Identity.p)
+            drop_out=0.5,       # aman (hindari bug Identity.p)
             optimizer="Adam",
             optimizer_params=optimizer_params,
             write_path="./gtnnwr_runs",

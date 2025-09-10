@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-import matplotlib.pyplot as plt
 import folium
 from streamlit_folium import st_folium
 import geopandas as gpd
@@ -25,7 +24,7 @@ st.caption("Monitoring Indeks Ketahanan Pangan (IKP) berbasis GTNNWR Pretrained 
 # Load Dataset
 # --------------------------
 DATA_PATH = "datasec.xlsx"
-MODEL_PATH = "GTNNWR_DSi (1).pt"
+MODEL_PATH = "GTNNWR_DSi.pt"   # ganti nama file sesuai model kamu
 
 try:
     if DATA_PATH.endswith(".csv"):
@@ -64,7 +63,7 @@ st.dataframe(df.head())
 
 
 # --------------------------
-# Peta IKP
+# Peta IKP per Provinsi
 # --------------------------
 st.write("---")
 st.subheader("🗺️ Peta Indonesia — IKP per Provinsi")
@@ -121,6 +120,8 @@ except Exception as e:
 st.write("---")
 st.subheader("🤖 Analisis GTNNWR (Load Pretrained TorchScript)")
 
+df_pred, coef_df = None, None
+
 try:
     # load wrapper
     model = GTNNWRWrapper(prov_col=prov_col)
@@ -156,16 +157,19 @@ st.write("---")
 st.subheader("📍 Detail Provinsi")
 
 try:
-    prov = st.selectbox("Pilih Provinsi", df[prov_col].unique())
-    prov_data = df_pred[df_pred[prov_col] == prov]
+    if df_pred is not None:
+        prov = st.selectbox("Pilih Provinsi", df[prov_col].unique())
+        prov_data = df_pred[df_pred[prov_col] == prov]
 
-    st.write(f"### {prov} — IKP 2019–2024")
-    st.dataframe(prov_data[["Tahun", "IKP", "IKP_Prediksi"]])
+        st.write(f"### {prov} — IKP 2019–2024")
+        st.dataframe(prov_data[["Tahun", "IKP", "IKP_Prediksi"]])
 
-    if coef_df is not None:
-        st.write(f"### {prov} — Koefisien GTNNWR 2019–2024")
-        coef_prov = coef_df[coef_df[prov_col] == prov]
-        st.dataframe(coef_prov)
+        if coef_df is not None:
+            st.write(f"### {prov} — Koefisien GTNNWR 2019–2024")
+            coef_prov = coef_df[coef_df[prov_col] == prov]
+            st.dataframe(coef_prov)
+    else:
+        st.warning("⚠️ Data prediksi tidak tersedia.")
 
 except Exception:
-    st.warning("⚠️ Data koefisien provinsi tidak tersedia.")
+    st.warning("⚠️ Data detail provinsi tidak tersedia.")

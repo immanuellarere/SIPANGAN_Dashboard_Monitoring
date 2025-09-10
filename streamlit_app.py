@@ -13,17 +13,18 @@ from gtnnwr_wrapper import GTNNWRWrapper   # wrapper GTNNWR
 # Konfigurasi Halaman
 # --------------------------
 st.set_page_config(
-    page_title="Kekuatan Data — Dashboard IKP",
+    page_title="SIPANGAN Dashboard Monitoring",
     layout="wide"
 )
 
-st.title("SIPANGAN Dashboard Monitoring")
+st.title("📊 SIPANGAN Dashboard Monitoring")
+st.caption("Monitoring Indeks Ketahanan Pangan (IKP) berbasis GTNNWR")
 
 
 # --------------------------
 # Load Dataset Lokal
 # --------------------------
-DATA_PATH = "datasec.xlsx"   # pastikan nama file sesuai di folder
+DATA_PATH = "datasec.xlsx"   # ganti sesuai nama file dataset
 
 try:
     if DATA_PATH.endswith(".csv"):
@@ -36,7 +37,7 @@ try:
     df = df.rename(columns=lambda x: x.strip().replace(" ", "_"))
 
 except Exception as e:
-    st.error(f"Gagal membaca dataset SEC 2025: {e}")
+    st.error(f"❌ Gagal membaca dataset SEC 2025: {e}")
     st.stop()
 
 
@@ -48,28 +49,29 @@ if "Provinsi" in df.columns:
 elif "Nama_Provinsi" in df.columns:
     prov_col = "Nama_Provinsi"
 else:
-    st.error("Dataset harus punya kolom 'Provinsi' atau 'Nama_Provinsi'")
+    st.error("❌ Dataset harus punya kolom 'Provinsi' atau 'Nama_Provinsi'")
     st.stop()
 
 
 # --------------------------
 # Preview Data
 # --------------------------
-st.subheader("Data Preview")
+st.write("---")
+st.subheader("🔍 Data Preview")
 st.dataframe(df.head())
 
 
 # --------------------------
-# Peta IKP per Provinsi (Full Width)
+# Peta IKP per Provinsi
 # --------------------------
 st.write("---")
-st.subheader("Peta Indonesia — IKP per Provinsi")
+st.subheader("🗺️ Peta Indonesia — IKP per Provinsi")
 
 try:
     tahun_list = sorted(df["Tahun"].unique())
     tahun_peta = st.selectbox("Pilih Tahun untuk Peta", tahun_list)
 
-    df_filtered = df[df["Tahun"] == tahun_peta]
+    df_filtered = df[df["Tahun"] == tahun_peta].copy()
 
     # Load GeoJSON provinsi Indonesia
     url = "https://raw.githubusercontent.com/ans-4175/peta-indonesia-geojson/master/indonesia-prov.geojson"
@@ -80,8 +82,7 @@ try:
     df_filtered[prov_col] = df_filtered[prov_col].str.title()
 
     # Range IKP
-    ikp_min = df_filtered["IKP"].min()
-    ikp_max = df_filtered["IKP"].max()
+    ikp_min, ikp_max = df_filtered["IKP"].min(), df_filtered["IKP"].max()
     st.write(f"Range IKP ({tahun_peta}): {ikp_min:.2f} – {ikp_max:.2f}")
 
     bins = [0, 37.61, 48.27, 57.11, 65.96, 74.40, max(100, ikp_max + 1)]
@@ -119,14 +120,14 @@ try:
     st_folium(m, width=1000, height=600)
 
 except Exception as e:
-    st.error(f"Gagal memuat peta: {e}")
+    st.error(f"❌ Gagal memuat peta: {e}")
 
 
 # --------------------------
-# 🔹 Bagian GTNNWR
+# Analisis GTNNWR
 # --------------------------
 st.write("---")
-st.subheader("Analisis GTNNWR")
+st.subheader("🤖 Analisis GTNNWR")
 
 try:
     x_columns = [c for c in df.columns if c not in
@@ -134,7 +135,7 @@ try:
 
     if "gtnnwr_model" not in st.session_state:
         model = GTNNWRWrapper(x_columns, y_column="IKP")
-        st.info("⏳ Melatih model GTNNWR... (butuh waktu sebentar)")
+        st.info("⏳ Melatih model GTNNWR... butuh waktu sebentar")
         results = model.fit(df)
         st.session_state["gtnnwr_model"] = model
         st.session_state["gtnnwr_results"] = results
@@ -146,12 +147,12 @@ try:
     if not results:
         st.warning("⚠️ Tidak ada hasil evaluasi dari GTNNWR.")
     else:
-        st.write("### Hasil Evaluasi GTNNWR")
-        st.json(results)
+        st.write("### 📈 Hasil Evaluasi GTNNWR")
+        st.json(results)   # aman, wrapper sudah convert ke dict python murni
 
         # Plot Prediksi vs Aktual
         try:
-            y_true = df[df["Tahun"] == 2024]["IKP"].values
+            y_true = df[df["Tahun"] == 2024]["IKP"].values.flatten()
             y_pred = model.predict()
             if y_pred is not None:
                 st.subheader("Prediksi vs Aktual (Test 2024)")
@@ -161,16 +162,18 @@ try:
                 ax.set_ylabel("Predicted IKP")
                 st.pyplot(fig)
         except Exception as e:
-            st.warning(f"Plot prediksi gagal: {e}")
+            st.warning(f"⚠️ Plot prediksi gagal: {e}")
 
 except Exception as e:
-    st.error(f"Gagal menjalankan GTNNWR: {e}")
+    st.error(f"❌ Gagal menjalankan GTNNWR: {e}")
 
 
 # --------------------------
-# 🔹 Detail Provinsi + Simulasi
+# Detail Provinsi + Simulasi
 # --------------------------
 st.write("---")
+st.subheader("📍 Detail Provinsi & Simulasi")
+
 prov = st.selectbox("Pilih Provinsi untuk Detail", df[prov_col].unique())
 prov_data = df[df[prov_col] == prov].iloc[0]
 

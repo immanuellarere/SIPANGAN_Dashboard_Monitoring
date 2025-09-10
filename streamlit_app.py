@@ -7,7 +7,6 @@ import geopandas as gpd
 import branca.colormap as cm
 
 from gtnnwr_wrapper import GTNNWRWrapper   # Wrapper GTNNWR
-from gnnwr.datasets import init_dataset_split
 
 
 # --------------------------
@@ -39,7 +38,7 @@ try:
     df["id"] = range(len(df))
 
 except Exception as e:
-    st.error(f"❌ Gagal membaca dataset SEC 2025: {e}")
+    st.error(f"❌ Gagal membaca dataset: {e}")
     st.stop()
 
 
@@ -127,13 +126,17 @@ except Exception as e:
 st.write("---")
 st.subheader("🤖 Analisis GTNNWR (Load Pretrained)")
 
+coef_df = None
 try:
     x_columns = [c for c in df.columns if c not in
                  [prov_col, "Tahun", "IKP", "Longitude", "Latitude", "id"]]
 
     # Load pretrained model
     model = GTNNWRWrapper(x_columns, y_column="IKP")
-    model.load_pretrained(df, MODEL_PATH)
+    results = model.load_pretrained(df, MODEL_PATH)
+
+    st.write("### 📈 Hasil Evaluasi GTNNWR")
+    st.json(results)
 
     # Ambil koefisien per provinsi per tahun
     coef_df = model.get_coefs()
@@ -170,10 +173,7 @@ st.write(f"### {prov} — IKP 2019–2024")
 st.dataframe(prov_data[["Tahun", "IKP"]])
 
 # Koefisien provinsi terpilih
-try:
-    if coef_df is not None:
-        st.write(f"### {prov} — Koefisien GTNNWR 2019–2024")
-        coef_prov = coef_df[coef_df[prov_col] == prov]
-        st.dataframe(coef_prov)
-except:
-    st.warning("⚠️ Koefisien provinsi tidak tersedia.")
+if coef_df is not None:
+    st.write(f"### {prov} — Koefisien GTNNWR 2019–2024")
+    coef_prov = coef_df[coef_df[prov_col] == prov]
+    st.dataframe(coef_prov)

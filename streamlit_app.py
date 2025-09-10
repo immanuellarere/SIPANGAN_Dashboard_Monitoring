@@ -1,13 +1,12 @@
-import streamlit as st
+iimport streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 import folium
 from streamlit_folium import st_folium
 import geopandas as gpd
 import branca.colormap as cm
-import torch
 
-from gtnnwr_wrapper import GTNNWRWrapper
+from gtnnwr_wrapper import GTNNWRWrapper   # Wrapper GTNNWR
 from gnnwr.datasets import init_dataset_split
 
 
@@ -26,8 +25,8 @@ st.caption("Monitoring Indeks Ketahanan Pangan (IKP) berbasis GTNNWR Pretrained"
 # --------------------------
 # Load Dataset Lokal
 # --------------------------
-DATA_PATH = "datasec.xlsx"   # ganti sesuai nama file dataset
-MODEL_PATH = "./GTNNWR_DSi_model.pth"  # pastikan file .pth ada di folder ini
+DATA_PATH = "datasec.xlsx"       # dataset lokal
+MODEL_PATH = "./GTNNWR_DSi_model.pth"   # pretrained model (.pth)
 
 try:
     if DATA_PATH.endswith(".csv"):
@@ -132,36 +131,19 @@ try:
     x_columns = [c for c in df.columns if c not in
                  [prov_col, "Tahun", "IKP", "Longitude", "Latitude", "id"]]
 
-    # split dataset
-    train_data = df[df["Tahun"] <= 2022]
-    val_data   = df[df["Tahun"] == 2023]
-    test_data  = df[df["Tahun"] == 2024]
-
-    train_dataset, val_dataset, test_dataset = init_dataset_split(
-        train_data=train_data,
-        val_data=val_data,
-        test_data=test_data,
-        x_column=x_columns,
-        y_column=["IKP"],
-        spatial_column=["Longitude", "Latitude"],
-        temp_column=["Tahun"],
-        id_column=["id"],
-        use_model="gtnnwr",
-        batch_size=512,
-        shuffle=False
-    )
-
-    # Load model pretrained
+    # Load pretrained model
     model = GTNNWRWrapper(x_columns, y_column="IKP")
-    model.fit(df, model_path=MODEL_PATH, retrain=False)
+    model.load_pretrained(df, MODEL_PATH)
 
-    # Ambil koefisien 2019-2024
-    coef_df = model.get_coef()
-    if coef_df is not None:
+    # Ambil koefisien per provinsi per tahun
+    coef_df = model.get_coefs()
+
+    if coef_df is not None and not coef_df.empty:
         coef_filtered = coef_df[(coef_df["Tahun"] >= 2019) & (coef_df["Tahun"] <= 2024)]
         st.subheader("📑 Koefisien GTNNWR per Provinsi (2019–2024)")
         st.dataframe(coef_filtered)
 
+        # Download CSV
         st.download_button(
             label="📥 Download Koefisien 2019–2024 (CSV)",
             data=coef_filtered.to_csv(index=False).encode("utf-8"),
@@ -186,3 +168,12 @@ prov_data = df[df[prov_col] == prov]
 
 st.write(f"### {prov} — IKP 2019–2024")
 st.dataframe(prov_data[["Tahun", "IKP"]])
+
+# Koefisien provinsi terpilih
+try:
+    if coef_df is not None:
+        st.write(f"### {prov} — Koefisien GTNNWR 2019–2024")
+        coef_prov = coef_df[coef_df[prov_col] == prov]
+        st.dataframe(coef_prov)
+except:
+    st.warning("⚠️ Koefisien provinsi tidak tersedia.")

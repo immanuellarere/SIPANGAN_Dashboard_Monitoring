@@ -25,7 +25,7 @@ st.caption("Monitoring Indeks Ketahanan Pangan (IKP) berbasis GTNNWR Pretrained 
 # Load Dataset
 # --------------------------
 DATA_PATH = "datasec.xlsx"
-MODEL_PATH = "GTNNWR_DSi.pt"
+MODEL_PATH = "GTNNWR_DSi (1).pt"
 
 try:
     if DATA_PATH.endswith(".csv"):

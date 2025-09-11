@@ -193,30 +193,32 @@ with col2:
     st.altair_chart(chart, use_container_width=False)
 
 # --------------------------
-# Preview Indikator (Card)
+# Box indikator variabel X
 # --------------------------
-st.write("---")
-st.subheader("📊 Preview Indikator")
+st.write(f"### 📊 Indikator {prov} — Tahun {tahun_pilih}")
 
-# Ambil semua kolom selain yang umum
+# Pilih data sesuai tahun yang dipilih
+data_tahun = prov_data[prov_data["Tahun"] == tahun_pilih].copy()
+
+# Ambil semua kolom kecuali yang umum
 exclude_cols = ["Tahun", "IKP", prov_col, "Latitude", "Longitude", "id"]
-indikator_cols = [c for c in prov_data.columns if c not in exclude_cols]
+indikator_cols = [c for c in data_tahun.columns if c not in exclude_cols]
 
-if indikator_cols:
-    indikator_data = prov_data_filtered[indikator_cols].iloc[-1]  # pakai tahun terakhir
-    
-    # Grid 2 kolom
-    cols = st.columns(2)
+if not data_tahun.empty:
+    indikator_data = data_tahun[indikator_cols].iloc[0]
+
+    # Buat grid 3 kolom biar rapih
+    cols = st.columns(3)
     for i, (label, value) in enumerate(indikator_data.items()):
-        with cols[i % 2]:
+        with cols[i % 3]:
             st.markdown(
                 f"""
                 <div style="border:1px solid #ddd; border-radius:8px; padding:12px; margin-bottom:10px;">
                     <div style="font-size:14px; color:#555;">{label.replace('_',' ')}</div>
-                    <div style="font-size:22px; font-weight:bold;">{value}</div>
+                    <div style="font-size:20px; font-weight:bold;">{value}</div>
                 </div>
                 """,
                 unsafe_allow_html=True
             )
 else:
-    st.warning("⚠️ Tidak ada kolom indikator tambahan di dataset.")
+    st.warning("⚠️ Data tidak tersedia untuk tahun ini.")

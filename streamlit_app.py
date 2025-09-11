@@ -1,22 +1,26 @@
 import streamlit as st
 import pandas as pd
+import matplotlib.pyplot as plt
 import folium
 from streamlit_folium import st_folium
 import geopandas as gpd
 import branca.colormap as cm
-import plotly.express as px   # ✅ untuk chart interaktif
 
 # --------------------------
 # Konfigurasi Halaman
 # --------------------------
-st.set_page_config(page_title="SIPANGAN Dashboard Monitoring", layout="wide")
+st.set_page_config(
+    page_title="SIPANGAN Dashboard Monitoring",
+    layout="wide"
+)
+
 st.title("📊 SIPANGAN Dashboard Monitoring")
-st.caption("Monitoring Indeks Ketahanan Pangan (IKP) 2019–2024")
+st.caption("Monitoring Indeks Ketahanan Pangan (IKP) berbasis Data 2019–2024")
 
 # --------------------------
-# Load Dataset
+# Load Dataset Lokal
 # --------------------------
-DATA_PATH = "datasec.xlsx"
+DATA_PATH = "datasec.xlsx"       # dataset lokal
 
 try:
     if DATA_PATH.endswith(".csv"):
@@ -27,8 +31,12 @@ try:
     df = df.fillna(0)
     df = df.rename(columns=lambda x: x.strip().replace(" ", "_"))
     df["id"] = range(len(df))
+
+    # pastikan Tahun integer (tanpa koma ribuan)
+    df["Tahun"] = df["Tahun"].astype(int)
+
 except Exception as e:
-    st.error(f"❌ Gagal membaca dataset: {e}")
+    st.error(f"❌ Gagal membaca dataset SEC 2025: {e}")
     st.stop()
 
 # --------------------------
@@ -80,6 +88,7 @@ try:
     )
 
     m = folium.Map(location=[-2.5, 118], zoom_start=5)
+
     gdf = gdf.merge(df_filtered[[prov_col, "IKP"]], on=prov_col, how="left")
 
     def style_function(feature):
@@ -101,40 +110,38 @@ try:
 
     colormap.add_to(m)
     st_folium(m, width=1000, height=600)
+
 except Exception as e:
     st.error(f"❌ Gagal memuat peta: {e}")
 
 # --------------------------
-# Detail Provinsi (Tabel + Interactive Chart)
+# Detail Provinsi (Tabel + Chart)
 # --------------------------
 st.write("---")
 st.subheader("📍 Detail Provinsi")
 
 prov = st.selectbox("Pilih Provinsi", df[prov_col].unique())
-prov_data = df[df[prov_col] == prov]
+prov_data = df[df[prov_col] == prov].copy()
 
 st.write(f"### {prov} — IKP 2019–2024")
 
-# filter hanya 2019–2024
-prov_data_filtered = prov_data[prov_data["Tahun"].between(2019, 2024)][["Tahun", "IKP"]]
-prov_data_filtered = prov_data_filtered.sort_values("Tahun")
+# Filter tahun 2019-2024
+prov_data_filtered = prov_data[prov_data["Tahun"].between(2019, 2024)][["Tahun", "IKP"]].copy()
+prov_data_filtered["Tahun"] = prov_data_filtered["Tahun"].astype(int)  # tanpa koma
 
-# layout 2 kolom
+# Layout tabel + chart
 col1, col2 = st.columns([1, 2])
 
 with col1:
     st.dataframe(prov_data_filtered.reset_index(drop=True))
 
 with col2:
-    fig = px.line(
-        prov_data_filtered,
-        x="Tahun", y="IKP",
-        markers=True,
-        title="Tren IKP 5 Tahun"
-    )
-    fig.update_traces(text=prov_data_filtered["IKP"].round(2), textposition="top center")
-    fig.update_layout(
-        width=400, height=250,  # ✅ kecil, pas di samping tabel
-        margin=dict(l=10, r=10, t=40, b=20)
-    )
-    st.plotly_chart(fig, use_container_width=False)
+    fig, ax = plt.subplots(figsize=(4, 2.5))
+    ax.plot(prov_data_filtered["Tahun"], prov_data_filtered["IKP"], marker="o")
+    for i, v in enumerate(prov_data_filtered["IKP"]):
+        ax.text(prov_data_filtered["Tahun"].iloc[i], v + 0.5, f"{v:.2f}", ha="center", fontsize=8)
+    ax.set_title("Tren IKP 5 Tahun", fontsize=10)
+    ax.set_xlabel("Tahun")
+    ax.set_ylabel("IKP")
+    ax.set_xticks(prov_data_filtered["Tahun"])  # 2019–2024 fix
+    st.pyplot(fig)

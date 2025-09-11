@@ -141,8 +141,8 @@ with col2:
             tooltip=["Tahun", "IKP"]
         )
         .properties(
-            width=350,
-            height=250,
+            width=500,   # diperbesar
+            height=350,  # diperbesar
             title="Tren IKP 5 Tahun"
         )
     )

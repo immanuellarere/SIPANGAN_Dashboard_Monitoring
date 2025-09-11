@@ -218,7 +218,7 @@ else:
     st.warning("⚠️ Data tidak tersedia untuk tahun ini.")
 
 # --------------------------
-# Simulasi IKP
+# Simulasi IKP (pakai koefisien tahun 2024 saja)
 # --------------------------
 st.write("---")
 st.subheader("🧮 Simulasi IKP")
@@ -229,10 +229,12 @@ except Exception as e:
     st.error(f"❌ Gagal membaca file modelling.xlsx: {e}")
     st.stop()
 
-prov_sim = st.selectbox("Pilih Provinsi untuk Simulasi", coef_df["ID"].unique())
-tahun_sim = st.selectbox("Pilih Tahun Simulasi", sorted(coef_df["waktu"].unique()))
+# Ambil koefisien hanya tahun 2024
+coef_2024 = coef_df[coef_df["waktu"] == 2024]
 
-row = coef_df[(coef_df["ID"] == prov_sim) & (coef_df["waktu"] == tahun_sim)]
+prov_sim = st.selectbox("Pilih Provinsi untuk Simulasi", coef_2024["ID"].unique())
+
+row = coef_2024[coef_2024["ID"] == prov_sim]
 if row.empty:
     st.warning("⚠️ Data koefisien tidak ditemukan.")
 else:
@@ -248,7 +250,12 @@ else:
         with cols[i % 3]:
             inputs[var_name] = st.number_input(var_name, value=1.0, step=0.1)
 
+    # Hitung IKP simulasi (koef * X + bias)
     ikp_sim = sum(inputs[v] * row[f"coef_{v}"] for v in inputs) + bias
 
+    # Tampilkan hasil
     st.markdown("### 🎯 Hasil IKP Simulasi")
-    st.markdown(f"<h2 style='text-align:center; color:#333;'>{ikp_sim:.2f}</h2>", unsafe_allow_html=True)
+    st.markdown(
+        f"<h2 style='text-align:center; color:#333;'>{ikp_sim:.2f}</h2>",
+        unsafe_allow_html=True
+    )

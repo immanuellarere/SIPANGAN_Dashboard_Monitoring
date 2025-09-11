@@ -110,7 +110,7 @@ st.subheader("🤖 Analisis GTNNWR (.pt)")
 df_pred = None
 try:
     # ----------------------
-    # Buat dataset penuh untuk inference (tidak ada val/test kosong)
+    # Buat dataset penuh untuk inference
     # ----------------------
     x_columns = [
         'Skor_PPH', 'Luas_Panen', 'Produktivitas', 'Produksi',
@@ -133,9 +133,12 @@ try:
         shuffle=False
     )
 
-    # Ambil semua fitur X dari dataset
-    x_all = [full_dataset[i][0] for i in range(len(full_dataset))]
-    x_input = torch.stack(x_all)
+    # Ambil data X dengan cara benar
+    if hasattr(full_dataset, "x_data"):  # beberapa versi gnnwr punya ini
+        x_input = torch.tensor(full_dataset.x_data, dtype=torch.float32)
+    else:
+        x_all = [full_dataset[i][0].flatten() for i in range(len(full_dataset))]
+        x_input = torch.stack(x_all)
 
     # Prediksi
     with torch.no_grad():

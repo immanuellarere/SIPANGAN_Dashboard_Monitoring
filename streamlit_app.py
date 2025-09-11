@@ -156,7 +156,7 @@ with col1:
 
 with col2:
     base = alt.Chart(prov_data_filtered).encode(
-        x=alt.X("Tahun:O", title="Tahun", axis=alt.Axis(labelAngle=0)),  # label tahun lurus
+        x=alt.X("Tahun:O", title="Tahun", axis=alt.Axis(labelAngle=0)),
         y=alt.Y("IKP:Q", title="IKP")
     )
 
@@ -164,7 +164,7 @@ with col2:
         tooltip=["Tahun", "IKP"]
     )
 
-    # Tambahkan nilai IKP di tiap titik (ukuran kecil)
+    # Nilai IKP kecil di tiap titik
     text = base.mark_text(align="left", dx=8, dy=-8, fontSize=12).encode(
         text=alt.Text("IKP:Q", format=".2f")
     )
@@ -172,16 +172,15 @@ with col2:
     chart = (line + text).properties(
         width=750,
         height=420,
-        title="IKP 5 Tahun"
+        title="IKP 5 Tahun",
+        padding={"left": 50, "right": 20}  # <— geser grafik ke kanan
     ).configure_axis(
         labelFontSize=14,
         titleFontSize=16
     ).configure_title(
-        fontSize=20,
-        anchor="middle"  # biar rata tengah
+        fontSize=20
     ).configure_point(
         size=70
     )
 
-    # Geser grafik ke kanan dengan padding
-    st.altair_chart(chart.configure_view(padding={"left": 50, "right": 20}), use_container_width=False)
+    st.altair_chart(chart, use_container_width=False)

@@ -198,18 +198,14 @@ with col2:
 st.write("---")
 st.subheader("📊 Preview Indikator")
 
-# Ambil data indikator dari provinsi terpilih
-indikator_cols = [
-    "Skor_PPH", "Luas_Panen", "Produktivitas", "Tanah_Longsor",
-    "Banjir", "Kekeringan", "Kebakaran", "OPD_Penggerek_Batang_Padi",
-    "OPD_Wereng_Batang_Coklat", "OPD_Tikus", "OPD_Blas",
-    "OPD_Hwar_Daun", "OPD_Tungro", "OPD_Kerdil_Rumput"
-]
+# Ambil semua kolom selain yang umum
+exclude_cols = ["Tahun", "IKP", prov_col, "Latitude", "Longitude", "id"]
+indikator_cols = [c for c in prov_data.columns if c not in exclude_cols]
 
-if all(col in prov_data.columns for col in indikator_cols):
-    indikator_data = prov_data_filtered[indikator_cols].iloc[-1]  # pakai data tahun terakhir
+if indikator_cols:
+    indikator_data = prov_data_filtered[indikator_cols].iloc[-1]  # pakai tahun terakhir
     
-    # Buat grid (2 kolom)
+    # Grid 2 kolom
     cols = st.columns(2)
     for i, (label, value) in enumerate(indikator_data.items()):
         with cols[i % 2]:
@@ -223,4 +219,4 @@ if all(col in prov_data.columns for col in indikator_cols):
                 unsafe_allow_html=True
             )
 else:
-    st.warning("⚠️ Kolom indikator tidak ditemukan di dataset.")
+    st.warning("⚠️ Tidak ada kolom indikator tambahan di dataset.")

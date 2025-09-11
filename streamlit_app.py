@@ -123,18 +123,20 @@ st.write(f"### {prov} — IKP 2019–2024")
 
 # Filter tahun 2019–2024
 prov_data_filtered = prov_data[prov_data["Tahun"].between(2019, 2024)][["Tahun", "IKP"]].copy()
-prov_data_filtered["Tahun"] = prov_data_filtered["Tahun"].astype(int)  # tampil 2019 tanpa koma
+prov_data_filtered["Tahun"] = prov_data_filtered["Tahun"].astype(int)  # biar tanpa koma
 
-# Inject CSS untuk perbesar font tabel
+# Inject CSS untuk perbesar font & lebarkan tabel
 st.markdown(
     """
     <style>
     .stDataFrame div[data-testid="stDataFrameCell"] {
-        font-size: 18px !important;   /* perbesar font isi tabel */
+        font-size: 18px !important;   /* isi tabel */
+        text-align: center;
     }
     .stDataFrame div[data-testid="stDataFrameColumn"] {
-        font-size: 18px !important;   /* perbesar font header tabel */
+        font-size: 18px !important;   /* header tabel */
         font-weight: bold;
+        text-align: center;
     }
     </style>
     """,
@@ -145,11 +147,8 @@ st.markdown(
 col1, col2 = st.columns([1, 3])
 
 with col1:
-    st.dataframe(
-        prov_data_filtered.reset_index(drop=True),
-        use_container_width=True,
-        height=350
-    )
+    # tampilkan tabel tanpa index
+    st.table(prov_data_filtered)
 
 with col2:
     chart = (

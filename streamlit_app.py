@@ -1,10 +1,10 @@
 import streamlit as st
 import pandas as pd
-import matplotlib.pyplot as plt
 import folium
 from streamlit_folium import st_folium
 import geopandas as gpd
 import branca.colormap as cm
+import plotly.express as px   # ✅ untuk chart interaktif
 
 # --------------------------
 # Konfigurasi Halaman
@@ -105,7 +105,7 @@ except Exception as e:
     st.error(f"❌ Gagal memuat peta: {e}")
 
 # --------------------------
-# Detail Provinsi (Tabel + Chart Sampingan)
+# Detail Provinsi (Tabel + Interactive Chart)
 # --------------------------
 st.write("---")
 st.subheader("📍 Detail Provinsi")
@@ -126,11 +126,15 @@ with col1:
     st.dataframe(prov_data_filtered.reset_index(drop=True))
 
 with col2:
-    fig, ax = plt.subplots(figsize=(5, 3))
-    ax.plot(prov_data_filtered["Tahun"], prov_data_filtered["IKP"], marker="o")
-    for x, y in zip(prov_data_filtered["Tahun"], prov_data_filtered["IKP"]):
-        ax.text(x, y + 0.5, f"{y:.2f}", ha="center", fontsize=8)
-    ax.set_xlabel("Tahun")
-    ax.set_ylabel("IKP")
-    ax.set_title("Tren IKP 5 Tahun")
-    st.pyplot(fig)
+    fig = px.line(
+        prov_data_filtered,
+        x="Tahun", y="IKP",
+        markers=True,
+        title="Tren IKP 5 Tahun"
+    )
+    fig.update_traces(text=prov_data_filtered["IKP"].round(2), textposition="top center")
+    fig.update_layout(
+        width=400, height=250,  # ✅ kecil, pas di samping tabel
+        margin=dict(l=10, r=10, t=40, b=20)
+    )
+    st.plotly_chart(fig, use_container_width=False)

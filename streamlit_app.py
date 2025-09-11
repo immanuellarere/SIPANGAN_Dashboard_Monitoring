@@ -14,11 +14,8 @@ from gnnwr.models import GTNNWR
 # --------------------------
 st.set_page_config(page_title="SIPANGAN Dashboard Monitoring", layout="wide")
 st.title("📊 SIPANGAN Dashboard Monitoring")
-st.caption("Monitoring Indeks Ketahanan Pangan (IKP) berbasis GTNNWR Pretrained (.pt)")
+st.caption("Inference GTNNWR dari .pt dengan input multi-branch")
 
-# --------------------------
-# Path Data & Model
-# --------------------------
 DATA_PATH = "datasec.xlsx"
 MODEL_PATH = "gtnnwr_model.pt"
 
@@ -44,7 +41,7 @@ st.subheader("🔍 Data Preview")
 st.dataframe(df.head())
 
 # --------------------------
-# Definisi fitur input (harus sama seperti training)
+# Definisi fitur
 # --------------------------
 x_columns = [
     'Skor_PPH','Luas_Panen','Produktivitas','Produksi',
@@ -91,71 +88,38 @@ except Exception as e:
     st.stop()
 
 # --------------------------
-# Bentuk input dari dataset_split
+# Bentuk input multi-branch
 # --------------------------
-def dataset_to_tensor(ds):
-    xs = [ds[i][0].flatten() for i in range(len(ds))]
-    return torch.stack(xs)
+def dataset_to_branches(ds):
+    """Ambil input tuple (x_spatial, x_features)"""
+    xs = [ds[i][0] for i in range(len(ds))]   # setiap item sudah tuple
+    x_spatial = torch.stack([item[0].squeeze(0) for item in xs])   # [N, 2]
+    x_features = torch.stack([item[1].squeeze(0) for item in xs]) # [N, F]
+    return x_spatial, x_features
 
 try:
-    x_train = dataset_to_tensor(train_ds)
-    x_val   = dataset_to_tensor(val_ds)
-    x_test  = dataset_to_tensor(test_ds)
-    x_input = torch.cat([x_train, x_val, x_test], dim=0)
+    sp_train, ft_train = dataset_to_branches(train_ds)
+    sp_val,   ft_val   = dataset_to_branches(val_ds)
+    sp_test,  ft_test  = dataset_to_branches(test_ds)
 
-    st.write("📐 Shape input ke model:", x_input.shape)  # harus [N, 152]
+    x_spatial = torch.cat([sp_train, sp_val, sp_test], dim=0).unsqueeze(1)   # [N,1,2]
+    x_features = torch.cat([ft_train, ft_val, ft_test], dim=0).unsqueeze(1) # [N,1,F]
+
+    st.write("📐 Shape input spasial:", x_spatial.shape)
+    st.write("📐 Shape input fitur  :", x_features.shape)
 except Exception as e:
     st.error(f"❌ Gagal menyiapkan input: {e}")
     st.stop()
 
 # --------------------------
-# Peta IKP
-# --------------------------
-st.write("---")
-st.subheader("🗺️ Peta Indonesia — IKP per Provinsi")
-
-try:
-    tahun_list = sorted(df["Tahun"].unique())
-    tahun_peta = st.selectbox("Pilih Tahun untuk Peta", tahun_list)
-    df_filtered = df[df["Tahun"] == tahun_peta].copy()
-
-    url = "https://raw.githubusercontent.com/ans-4175/peta-indonesia-geojson/master/indonesia-prov.geojson"
-    gdf = gpd.read_file(url)
-    gdf[prov_col] = gdf["Propinsi"].str.title()
-    df_filtered[prov_col] = df_filtered[prov_col].str.title()
-
-    ikp_min, ikp_max = df_filtered["IKP"].min(), df_filtered["IKP"].max()
-    bins = [0, 37.61, 48.27, 57.11, 65.96, 74.40, max(100, ikp_max + 1)]
-    colormap = cm.StepColormap(colors=['#4B0000', '#FF3333', '#FF9999',
-                                       '#CCFF99', '#66CC66', '#006600'],
-                               vmin=bins[0], vmax=bins[-1], index=bins,
-                               caption="Indeks Ketahanan Pangan (IKP)")
-
-    m = folium.Map(location=[-2.5, 118], zoom_start=5)
-    gdf = gdf.merge(df_filtered[[prov_col, "IKP"]], on=prov_col, how="left")
-
-    folium.GeoJson(
-        gdf,
-        style_function=lambda f: {"fillColor": colormap(f["properties"]["IKP"]) if f["properties"]["IKP"] else "gray",
-                                  "fillOpacity": 0.7, "weight": 0.5, "color": "black"},
-        tooltip=folium.GeoJsonTooltip(fields=[prov_col, "IKP"])
-    ).add_to(m)
-
-    colormap.add_to(m)
-    st_folium(m, width=1000, height=600)
-
-except Exception as e:
-    st.error(f"❌ Gagal memuat peta: {e}")
-
-# --------------------------
-# Analisis GTNNWR (.pt)
+# Prediksi
 # --------------------------
 st.write("---")
 st.subheader("🤖 Analisis GTNNWR (.pt)")
 
 try:
     with torch.no_grad():
-        y_pred = model(x_input)
+        y_pred = model((x_spatial, x_features))   # <== PENTING: tuple, bukan tensor!
 
     df_ordered = pd.concat([train_data, val_data, test_data], axis=0)
     df_ordered = df_ordered.sort_values("id")

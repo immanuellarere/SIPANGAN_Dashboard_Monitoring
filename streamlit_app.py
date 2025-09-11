@@ -105,7 +105,7 @@ except Exception as e:
     st.error(f"❌ Gagal memuat peta: {e}")
 
 # --------------------------
-# Detail Provinsi
+# Detail Provinsi (Tabel + Chart Sampingan)
 # --------------------------
 st.write("---")
 st.subheader("📍 Detail Provinsi")
@@ -119,13 +119,18 @@ st.write(f"### {prov} — IKP 2019–2024")
 prov_data_filtered = prov_data[prov_data["Tahun"].between(2019, 2024)][["Tahun", "IKP"]]
 prov_data_filtered = prov_data_filtered.sort_values("Tahun")
 
-# tampilkan tabel TANPA index
-st.dataframe(prov_data_filtered.reset_index(drop=True))
+# layout 2 kolom
+col1, col2 = st.columns([1, 2])
 
-# line chart
-fig, ax = plt.subplots(figsize=(6, 3))
-ax.plot(prov_data_filtered["Tahun"], prov_data_filtered["IKP"], marker="o")
-ax.set_xlabel("Tahun")
-ax.set_ylabel("IKP")
-ax.set_title(f"Perkembangan IKP {prov} (2019–2024)")
-st.pyplot(fig)
+with col1:
+    st.dataframe(prov_data_filtered.reset_index(drop=True))
+
+with col2:
+    fig, ax = plt.subplots(figsize=(5, 3))
+    ax.plot(prov_data_filtered["Tahun"], prov_data_filtered["IKP"], marker="o")
+    for x, y in zip(prov_data_filtered["Tahun"], prov_data_filtered["IKP"]):
+        ax.text(x, y + 0.5, f"{y:.2f}", ha="center", fontsize=8)
+    ax.set_xlabel("Tahun")
+    ax.set_ylabel("IKP")
+    ax.set_title("Tren IKP 5 Tahun")
+    st.pyplot(fig)

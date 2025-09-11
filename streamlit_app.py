@@ -15,12 +15,13 @@ st.set_page_config(
 )
 
 st.title("📊 SIPANGAN Dashboard Monitoring")
-st.caption("Monitoring Indeks Ketahanan Pangan (IKP) dari data historis 2019–2024")
+st.caption("Monitoring & Simulasi Indeks Ketahanan Pangan (IKP) 2019–2024")
 
 # --------------------------
 # Load Dataset Lokal
 # --------------------------
 DATA_PATH = "datasec.xlsx"
+MODEL_PATH = "Modelling.xlsx"
 
 try:
     if DATA_PATH.endswith(".csv"):
@@ -45,13 +46,6 @@ elif "Nama_Provinsi" in df.columns:
 else:
     st.error("❌ Dataset harus punya kolom 'Provinsi' atau 'Nama_Provinsi'")
     st.stop()
-
-# --------------------------
-# Preview Data
-# --------------------------
-st.write("---")
-st.subheader("🔍 Data Preview")
-st.dataframe(df.head())
 
 # --------------------------
 # Peta IKP per Provinsi
@@ -133,33 +127,6 @@ prov_data_filtered = (
 )
 prov_data_filtered["Tahun"] = prov_data_filtered["Tahun"].astype(int)
 
-# Inject CSS untuk tabel lebih rapih & font lebih besar
-st.markdown(
-    """
-    <style>
-    table {
-        font-size: 18px !important;
-        text-align: center !important;
-        width: 100% !important;
-        border-collapse: collapse !important;
-    }
-    th, td {
-        padding: 8px 16px !important;
-        text-align: center !important;
-    }
-    thead th {
-        font-weight: bold !important;
-        border-bottom: 2px solid #999 !important;
-    }
-    tbody tr:nth-child(even) {
-        background-color: #f9f9f9 !important;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True
-)
-
-# Layout tabel + chart
 col1, col2 = st.columns([1, 1.2])
 
 with col1:
@@ -170,30 +137,13 @@ with col2:
         x=alt.X("Tahun:O", title="Tahun", axis=alt.Axis(labelAngle=0)),
         y=alt.Y("IKP:Q", title="IKP")
     )
-
-    line = base.mark_line(point=True).encode(
-        tooltip=["Tahun", "IKP"]
-    )
-
-    text = base.mark_text(
-        align="left", dx=5, dy=-8, fontSize=12, color="black"
-    ).encode(
+    line = base.mark_line(point=True).encode(tooltip=["Tahun", "IKP"])
+    text = base.mark_text(align="left", dx=5, dy=-8, fontSize=12).encode(
         text=alt.Text("IKP:Q", format=".2f")
     )
-
     chart = (line + text).properties(
-        width=700,
-        height=420,
-        title="IKP 5 Tahun"
-    ).configure_axis(
-        labelFontSize=14,
-        titleFontSize=16
-    ).configure_title(
-        fontSize=20
-    ).configure_point(
-        size=70
+        width=700, height=420, title="IKP 5 Tahun"
     )
-
     st.altair_chart(chart, use_container_width=False)
 
 # --------------------------
@@ -201,17 +151,12 @@ with col2:
 # --------------------------
 st.write(f"### 📊 Indikator {prov} — Tahun {tahun_pilih}")
 
-# Pilih data sesuai tahun yang dipilih
 data_tahun = prov_data[prov_data["Tahun"] == tahun_pilih].copy()
-
-# Ambil semua kolom kecuali yang umum
 exclude_cols = ["Tahun", "IKP", prov_col, "Latitude", "Longitude", "id"]
 indikator_cols = [c for c in data_tahun.columns if c not in exclude_cols]
 
 if not data_tahun.empty:
     indikator_data = data_tahun[indikator_cols].iloc[0]
-
-    # Buat grid 3 kolom
     cols = st.columns(3)
     for i, (label, value) in enumerate(indikator_data.items()):
         with cols[i % 3]:
@@ -226,3 +171,39 @@ if not data_tahun.empty:
             )
 else:
     st.warning("⚠️ Data tidak tersedia untuk tahun ini.")
+
+# --------------------------
+# Simulasi IKP
+# --------------------------
+st.write("---")
+st.subheader("🧮 Simulasi IKP")
+
+try:
+    coef_df = pd.read_excel(MODEL_PATH, engine="openpyxl")
+except Exception as e:
+    st.error(f"❌ Gagal membaca file modelling.xlsx: {e}")
+    st.stop()
+
+prov_sim = st.selectbox("Pilih Provinsi untuk Simulasi", coef_df["ID"].unique())
+tahun_sim = st.selectbox("Pilih Tahun Simulasi", sorted(coef_df["waktu"].unique()))
+
+row = coef_df[(coef_df["ID"] == prov_sim) & (coef_df["waktu"] == tahun_sim)]
+if row.empty:
+    st.warning("⚠️ Data koefisien tidak ditemukan.")
+else:
+    row = row.iloc[0]
+    coef_cols = [c for c in row.index if c.startswith("coef_")]
+    bias = row["bias"]
+
+    st.markdown("#### Input Variabel X")
+    cols = st.columns(3)
+    inputs = {}
+    for i, coef_col in enumerate(coef_cols):
+        var_name = coef_col.replace("coef_", "")
+        with cols[i % 3]:
+            inputs[var_name] = st.number_input(var_name, value=1.0, step=0.1)
+
+    ikp_sim = sum(inputs[v] * row[f"coef_{v}"] for v in inputs) + bias
+
+    st.markdown("### 🎯 Hasil IKP Simulasi")
+    st.markdown(f"<h2 style='text-align:center; color:#333;'>{ikp_sim:.2f}</h2>", unsafe_allow_html=True)

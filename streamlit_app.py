@@ -133,7 +133,15 @@ st.subheader("🤖 Analisis GTNNWR (.pt)")
 
 try:
     with torch.no_grad():
-        y_pred = gtnnwr._model((x_spatial, x_features))
+        # GTNNWR biasanya expect dictionary, bukan tuple
+        try:
+            y_pred = gtnnwr._model({
+                "stpnn": x_spatial,
+                "swnn": x_features
+            })
+        except Exception:
+            # fallback: coba list
+            y_pred = gtnnwr._model([x_spatial, x_features])
 
     df_pred = df.copy()
     df_pred["IKP_Prediksi"] = y_pred.cpu().numpy().flatten()[:len(df)]

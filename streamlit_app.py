@@ -147,12 +147,12 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# Layout tabel + chart
-col1, col2 = st.columns([1, 3])
+# Layout tabel + chart (proporsi sama)
+col1, col2 = st.columns(2)
 
 with col1:
     # tampilkan tabel hanya Tahun & IKP
-    st.table(prov_data_filtered)
+    st.table(prov_data_filtered.style.format({"IKP": "{:.2f}"}))
 
 with col2:
     base = alt.Chart(prov_data_filtered).encode(
@@ -165,15 +165,15 @@ with col2:
     )
 
     # Nilai IKP kecil di tiap titik
-    text = base.mark_text(align="left", dx=8, dy=-8, fontSize=12).encode(
+    text = base.mark_text(
+        align="left", dx=5, dy=-8, fontSize=12, color="black"
+    ).encode(
         text=alt.Text("IKP:Q", format=".2f")
     )
 
     chart = (line + text).properties(
-        width=750,
-        height=420,
-        title="IKP 5 Tahun",
-        padding={"left": 50, "right": 20}  # <— geser grafik ke kanan
+        height=400,
+        title="IKP 5 Tahun"
     ).configure_axis(
         labelFontSize=14,
         titleFontSize=16
@@ -183,4 +183,4 @@ with col2:
         size=70
     )
 
-    st.altair_chart(chart, use_container_width=False)
+    st.altair_chart(chart, use_container_width=True)

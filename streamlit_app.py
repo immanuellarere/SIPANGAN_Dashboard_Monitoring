@@ -4,24 +4,20 @@ import folium
 from streamlit_folium import st_folium
 import geopandas as gpd
 import branca.colormap as cm
-
-from gtnnwr_wrapper import GTNNWRWrapper
-from gnnwr.datasets import init_dataset_split
-
+import torch
 
 # --------------------------
 # Konfigurasi Halaman
 # --------------------------
 st.set_page_config(page_title="SIPANGAN Dashboard Monitoring", layout="wide")
 st.title("📊 SIPANGAN Dashboard Monitoring")
-st.caption("Monitoring Indeks Ketahanan Pangan (IKP) berbasis GTNNWR Pretrained (.pth)")
-
+st.caption("Monitoring Indeks Ketahanan Pangan (IKP) berbasis GTNNWR Pretrained (.pt)")
 
 # --------------------------
 # Load Dataset
 # --------------------------
 DATA_PATH = "datasec.xlsx"
-MODEL_PATH = "GTNNWR_DSi_model.pth"   # pakai state_dict .pth
+MODEL_PATH = "GTNNWR_DSi_model.pt"   # full model .pt
 
 try:
     df = pd.read_excel(DATA_PATH, engine="openpyxl") if DATA_PATH.endswith("xlsx") else pd.read_csv(DATA_PATH)
@@ -32,7 +28,6 @@ except Exception as e:
     st.error(f"❌ Gagal membaca dataset: {e}")
     st.stop()
 
-
 # --------------------------
 # Tentukan kolom Provinsi
 # --------------------------
@@ -41,7 +36,6 @@ if prov_col is None:
     st.error("❌ Dataset harus punya kolom 'Provinsi' atau 'Nama_Provinsi'")
     st.stop()
 
-
 # --------------------------
 # Preview Data
 # --------------------------
@@ -49,6 +43,21 @@ st.write("---")
 st.subheader("🔍 Data Preview")
 st.dataframe(df.head())
 
+# --------------------------
+# Load Model .pt
+# --------------------------
+@st.cache_resource
+def load_model():
+    model = torch.load(MODEL_PATH, map_location="cpu")
+    model.eval()
+    return model
+
+try:
+    model = load_model()
+    st.success("✅ Model berhasil diload dari .pt")
+except Exception as e:
+    st.error(f"❌ Gagal load model .pt: {e}")
+    st.stop()
 
 # --------------------------
 # Peta IKP
@@ -89,52 +98,36 @@ try:
 except Exception as e:
     st.error(f"❌ Gagal memuat peta: {e}")
 
-
 # --------------------------
-# Analisis GTNNWR
+# Analisis GTNNWR (.pt)
 # --------------------------
 st.write("---")
-st.subheader("🤖 Analisis GTNNWR (.pth + Koefisien)")
+st.subheader("🤖 Analisis GTNNWR (.pt)")
 
-df_pred, coef_df = None, None
+df_pred = None
 try:
-    # split dataset sesuai definisi training
-    train_data = df[df["Tahun"] <= 2022]
-    val_data   = df[df["Tahun"] == 2023]
-    test_data  = df[df["Tahun"] == 2024]
+    # --- pastikan input sesuai dengan jumlah fitur yang dipakai saat training ---
+    # ⚠️ ganti list fitur ini agar cocok dengan model Anda (kemarin terdeteksi 152 input!)
+    x_columns = [c for c in df.columns if c not in ["IKP", prov_col, "id"]]
 
-    x_columns = [
-        'Skor_PPH', 'Luas_Panen', 'Produktivitas', 'Produksi',
-        'Tanah_Longsor', 'Banjir', 'Kekeringan', 'Kebakaran', 'Cuaca',
-        'OPD_Penggerek_Batang_Padi', 'OPD_Wereng_Batang_Coklat',
-        'OPD_Tikus', 'OPD_Blas', 'OPD_Hwar_Daun', 'OPD_Tungro'
-    ]
-    x_all = x_columns + ["Longitude", "Latitude", "Tahun"]
+    x_input = torch.tensor(df[x_columns].values, dtype=torch.float32)
+    if x_input.dim() == 2:
+        x_input = x_input.unsqueeze(1)
 
-    train_dataset, val_dataset, test_dataset = init_dataset_split(
-        train_data=train_data, val_data=val_data, test_data=test_data,
-        x_column=x_all, y_column=["IKP"],
-        spatial_column=["Longitude", "Latitude"],
-        temp_column=["Tahun"], id_column=["id"],
-        use_model="gtnnwr", batch_size=1024, shuffle=False
-    )
+    with torch.no_grad():
+        y_pred = model(x_input)
 
-    model = GTNNWRWrapper(train_dataset, val_dataset, test_dataset, prov_col=prov_col)
-    model.load(MODEL_PATH)
+    df_pred = df.copy()
+    df_pred["IKP_Prediksi"] = y_pred.numpy().flatten()
 
-    df_pred = model.predict(df)
-    coef_df = model.get_coefs(df_pred)
+    st.subheader("📑 Hasil Prediksi IKP")
+    st.dataframe(df_pred[["Tahun", prov_col, "IKP", "IKP_Prediksi"]])
+    st.download_button("📥 Download CSV Prediksi",
+                       df_pred.to_csv(index=False).encode("utf-8"),
+                       file_name="prediksi_ikp.csv", mime="text/csv")
 
-    if coef_df is not None:
-        st.subheader("📑 Koefisien GTNNWR per Provinsi (2019–2024)")
-        st.dataframe(coef_df)
-        st.download_button("📥 Download CSV Koefisien", coef_df.to_csv(index=False).encode("utf-8"),
-                           file_name="koefisien_2019_2024.csv", mime="text/csv")
-    else:
-        st.warning("⚠️ Tidak ada koefisien yang bisa ditampilkan.")
 except Exception as e:
-    st.error(f"❌ Gagal menjalankan GTNNWR: {e}")
-
+    st.error(f"❌ Gagal menjalankan prediksi: {e}")
 
 # --------------------------
 # Detail Provinsi
@@ -147,8 +140,3 @@ if df_pred is not None:
     prov_data = df_pred[df_pred[prov_col] == prov]
     st.write(f"### {prov} — IKP & Prediksi")
     st.dataframe(prov_data[["Tahun", "IKP", "IKP_Prediksi"]])
-
-    if coef_df is not None:
-        coef_prov = coef_df[coef_df[prov_col] == prov]
-        st.write(f"### {prov} — Koefisien GTNNWR")
-        st.dataframe(coef_prov)

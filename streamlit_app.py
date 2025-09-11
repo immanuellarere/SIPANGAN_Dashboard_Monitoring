@@ -6,7 +6,7 @@ import geopandas as gpd
 import branca.colormap as cm
 import torch
 
-from gnnwr.datasets import init_dataset_split  # penting buat preprocessing
+from gnnwr.datasets import init_dataset_split  # preprocessing bawaan gnnwr
 
 # --------------------------
 # Konfigurasi Halaman
@@ -109,12 +109,9 @@ st.subheader("🤖 Analisis GTNNWR (.pt)")
 
 df_pred = None
 try:
-    # split dataset sama seperti training → biar transformasi fitur identik
-    train_data = df[df["Tahun"] <= 2022]
-    val_data   = df[df["Tahun"] == 2023]
-    test_data  = df[df["Tahun"] == 2024]
-
-    # kolom input (snake_case, sudah sesuai rename)
+    # ----------------------
+    # Buat dataset penuh untuk inference
+    # ----------------------
     x_columns = [
         'Skor_PPH', 'Luas_Panen', 'Produktivitas', 'Produksi',
         'Tanah_Longsor', 'Banjir', 'Kekeringan', 'Kebakaran', 'Cuaca',
@@ -122,11 +119,10 @@ try:
         'OPD_Tikus', 'OPD_Blas', 'OPD_Hwar_Daun', 'OPD_Tungro'
     ]
 
-    # dataset split dengan spatial+temp+id → otomatis jadi 152 fitur
-    train_dataset, val_dataset, test_dataset = init_dataset_split(
-        train_data=train_data,
-        val_data=val_data,
-        test_data=test_data,
+    full_dataset, _, _ = init_dataset_split(
+        train_data=df,            # pakai seluruh data
+        val_data=df.iloc[0:0],    # kosong
+        test_data=df.iloc[0:0],   # kosong
         x_column=x_columns,
         y_column=["IKP"],
         spatial_column=["Longitude", "Latitude"],
@@ -137,15 +133,17 @@ try:
         shuffle=False
     )
 
-    # Ambil semua fitur X dari dataset dengan indexing
-    x_all = [train_dataset[i][0] for i in range(len(train_dataset))]
+    # Ambil semua fitur X dari dataset
+    x_all = [full_dataset[i][0] for i in range(len(full_dataset))]
     x_input = torch.stack(x_all)
 
+    # Prediksi
     with torch.no_grad():
         y_pred = model(x_input)
 
+    # Pastikan panjang prediksi sama dengan jumlah baris df
     df_pred = df.copy()
-    df_pred["IKP_Prediksi"] = y_pred.numpy().flatten()
+    df_pred["IKP_Prediksi"] = y_pred.numpy().flatten()[:len(df)]
 
     st.subheader("📑 Hasil Prediksi IKP")
     st.dataframe(df_pred[["Tahun", prov_col, "IKP", "IKP_Prediksi"]])

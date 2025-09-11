@@ -1,13 +1,12 @@
 import numpy as np
 import pandas as pd
 import torch
-from gnnwr.models import GTNNWR   # arsitektur asli
+from gnnwr.models import GTNNWR
 from gnnwr.datasets import init_dataset_split
 
 
 class GTNNWRWrapper:
-    def __init__(self, train_dataset, val_dataset, test_dataset,
-                 prov_col="Provinsi"):
+    def __init__(self, train_dataset, val_dataset, test_dataset, prov_col="Provinsi"):
         # fitur utama (dari training)
         self.base_x_columns = [
             'Skor_PPH', 'Luas_Panen', 'Produktivitas', 'Produksi',
@@ -17,8 +16,8 @@ class GTNNWRWrapper:
         ]
         self.extra_cols = ["Longitude", "Latitude", "Tahun"]
 
-        self.prov_col = prov_col
         self.y_column = ["IKP"]
+        self.prov_col = prov_col
 
         # bangun ulang arsitektur model
         self.model = GTNNWR(
@@ -31,10 +30,10 @@ class GTNNWRWrapper:
                               "scheduler_gamma": 0.8},
             write_path="./gtnnwr_runs",
             model_name="GTNNWR_DSi"
-        )._model   # akses ke torch.nn.Module asli
+        )._model   # ambil nn.Module asli
 
     # -------------------------
-    # Load state_dict (.pth)
+    # Load bobot .pth
     # -------------------------
     def load(self, model_path: str):
         state_dict = torch.load(model_path, map_location="cpu")
@@ -61,7 +60,7 @@ class GTNNWRWrapper:
         return data
 
     # -------------------------
-    # Ambil koefisien layer terakhir
+    # Ambil koefisien terakhir
     # -------------------------
     def get_coefs(self, data: pd.DataFrame):
         coefs = {}
@@ -83,6 +82,8 @@ class GTNNWRWrapper:
 
         coef_df = pd.DataFrame(coef_matrix, columns=coef_cols)
         coef_df["Intercept"] = 0.0
+
+        # gandakan agar match ke provinsi+tahun
         coef_df = pd.concat([coef_df] * len(data), ignore_index=True)
         coef_df[self.prov_col] = data[self.prov_col].values
         coef_df["Tahun"] = data["Tahun"].values

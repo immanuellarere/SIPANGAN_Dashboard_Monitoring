@@ -18,7 +18,7 @@ st.caption("Monitoring Indeks Ketahanan Pangan (IKP) berbasis GTNNWR Pretrained 
 # --------------------------
 # Load Dataset
 # --------------------------
-DATA_PATH = "Data SEC 2025 (2).xlsx"
+DATA_PATH = "datasec.xlsx"
 MODEL_PATH = "gtnnwr_model.pt"   # full model .pt
 
 try:

@@ -123,7 +123,7 @@ st.write(f"### {prov} — IKP 2019–2024")
 
 # Filter tahun 2019–2024
 prov_data_filtered = prov_data[prov_data["Tahun"].between(2019, 2024)][["Tahun", "IKP"]].copy()
-prov_data_filtered["Tahun"] = prov_data_filtered["Tahun"].astype(str)  # tampil 2019 tanpa koma
+prov_data_filtered["Tahun"] = prov_data_filtered["Tahun"].astype(int)  # tampil 2019 tanpa koma
 
 # Inject CSS untuk perbesar font tabel
 st.markdown(
@@ -152,30 +152,18 @@ with col1:
     )
 
 with col2:
-    base = alt.Chart(prov_data_filtered).encode(
-        x=alt.X("Tahun:O", title="Tahun"),
-        y=alt.Y("IKP:Q", title="IKP")
+    chart = (
+        alt.Chart(prov_data_filtered)
+        .mark_line(point=True)
+        .encode(
+            x=alt.X("Tahun:O", title="Tahun"),
+            y=alt.Y("IKP:Q", title="IKP"),
+            tooltip=["Tahun", "IKP"]
+        )
+        .properties(
+            width=750,
+            height=420,
+            title="Tren IKP 5 Tahun"
+        )
     )
-
-    line = base.mark_line(point=True).encode(
-        tooltip=["Tahun", "IKP"]
-    )
-
-    text = base.mark_text(align="left", dx=8, dy=-8).encode(
-        text=alt.Text("IKP:Q", format=".2f")
-    )
-
-    chart = (line + text).properties(
-        width=750,
-        height=420,
-        title="Tren IKP 5 Tahun"
-    ).configure_axis(
-        labelFontSize=16,
-        titleFontSize=18
-    ).configure_title(
-        fontSize=20
-    ).configure_point(
-        size=80
-    )
-
     st.altair_chart(chart, use_container_width=False)

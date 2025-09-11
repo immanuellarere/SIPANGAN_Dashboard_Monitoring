@@ -119,6 +119,10 @@ st.subheader("📍 Detail Provinsi")
 prov = st.selectbox("Pilih Provinsi", df[prov_col].unique())
 prov_data = df[df[prov_col] == prov].copy()
 
+# Pilih tahun
+tahun_opsi = sorted([int(t) for t in prov_data["Tahun"].unique() if 2019 <= int(t) <= 2024])
+tahun_pilih = st.selectbox("Pilih Tahun", tahun_opsi)
+
 st.write(f"### {prov} — IKP 2019–2024")
 
 # Filter tahun 2019–2024
@@ -178,7 +182,7 @@ with col2:
     )
 
     chart = (line + text).properties(
-        width=700,   # 🔥 dilebarkan (dari 500 → 700)
+        width=700,
         height=420,
         title="IKP 5 Tahun"
     ).configure_axis(
@@ -207,7 +211,7 @@ indikator_cols = [c for c in data_tahun.columns if c not in exclude_cols]
 if not data_tahun.empty:
     indikator_data = data_tahun[indikator_cols].iloc[0]
 
-    # Buat grid 3 kolom biar rapih
+    # Buat grid 3 kolom
     cols = st.columns(3)
     for i, (label, value) in enumerate(indikator_data.items()):
         with cols[i % 3]:

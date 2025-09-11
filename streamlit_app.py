@@ -37,6 +37,13 @@ except Exception as e:
     st.stop()
 
 # --------------------------
+# Preview Data
+# --------------------------
+st.write("---")
+st.subheader("🔍 Data Preview")
+st.dataframe(df.head())   # tampilkan preview data
+
+# --------------------------
 # Tentukan kolom Provinsi
 # --------------------------
 if "Provinsi" in df.columns:

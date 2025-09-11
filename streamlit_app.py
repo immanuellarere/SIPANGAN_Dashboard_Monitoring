@@ -1,10 +1,10 @@
 import streamlit as st
 import pandas as pd
-import matplotlib.pyplot as plt
 import folium
 from streamlit_folium import st_folium
 import geopandas as gpd
 import branca.colormap as cm
+import altair as alt   # untuk chart interaktif
 
 # --------------------------
 # Konfigurasi Halaman
@@ -15,12 +15,12 @@ st.set_page_config(
 )
 
 st.title("📊 SIPANGAN Dashboard Monitoring")
-st.caption("Monitoring Indeks Ketahanan Pangan (IKP) berbasis Data 2019–2024")
+st.caption("Monitoring Indeks Ketahanan Pangan (IKP) dari data historis 2019–2024")
 
 # --------------------------
 # Load Dataset Lokal
 # --------------------------
-DATA_PATH = "datasec.xlsx"       # dataset lokal
+DATA_PATH = "datasec.xlsx"
 
 try:
     if DATA_PATH.endswith(".csv"):
@@ -31,10 +31,6 @@ try:
     df = df.fillna(0)
     df = df.rename(columns=lambda x: x.strip().replace(" ", "_"))
     df["id"] = range(len(df))
-
-    # pastikan Tahun integer (tanpa koma ribuan)
-    df["Tahun"] = df["Tahun"].astype(int)
-
 except Exception as e:
     st.error(f"❌ Gagal membaca dataset SEC 2025: {e}")
     st.stop()
@@ -115,7 +111,7 @@ except Exception as e:
     st.error(f"❌ Gagal memuat peta: {e}")
 
 # --------------------------
-# Detail Provinsi (Tabel + Chart)
+# Detail Provinsi
 # --------------------------
 st.write("---")
 st.subheader("📍 Detail Provinsi")
@@ -127,7 +123,7 @@ st.write(f"### {prov} — IKP 2019–2024")
 
 # Filter tahun 2019-2024
 prov_data_filtered = prov_data[prov_data["Tahun"].between(2019, 2024)][["Tahun", "IKP"]].copy()
-prov_data_filtered["Tahun"] = prov_data_filtered["Tahun"].astype(int)  # tanpa koma
+prov_data_filtered["Tahun"] = prov_data_filtered["Tahun"].astype(int)  # pastikan integer
 
 # Layout tabel + chart
 col1, col2 = st.columns([1, 2])
@@ -136,12 +132,18 @@ with col1:
     st.dataframe(prov_data_filtered.reset_index(drop=True))
 
 with col2:
-    fig, ax = plt.subplots(figsize=(4, 2.5))
-    ax.plot(prov_data_filtered["Tahun"], prov_data_filtered["IKP"], marker="o")
-    for i, v in enumerate(prov_data_filtered["IKP"]):
-        ax.text(prov_data_filtered["Tahun"].iloc[i], v + 0.5, f"{v:.2f}", ha="center", fontsize=8)
-    ax.set_title("Tren IKP 5 Tahun", fontsize=10)
-    ax.set_xlabel("Tahun")
-    ax.set_ylabel("IKP")
-    ax.set_xticks(prov_data_filtered["Tahun"])  # 2019–2024 fix
-    st.pyplot(fig)
+    chart = (
+        alt.Chart(prov_data_filtered)
+        .mark_line(point=True)
+        .encode(
+            x=alt.X("Tahun:O", title="Tahun"),
+            y=alt.Y("IKP:Q", title="IKP"),
+            tooltip=["Tahun", "IKP"]
+        )
+        .properties(
+            width=350,
+            height=250,
+            title="Tren IKP 5 Tahun"
+        )
+    )
+    st.altair_chart(chart, use_container_width=False)

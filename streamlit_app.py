@@ -121,29 +121,36 @@ prov_data = df[df[prov_col] == prov].copy()
 
 st.write(f"### {prov} — IKP 2019–2024")
 
-# Filter tahun 2019-2024
+# Filter tahun 2019–2024
 prov_data_filtered = prov_data[prov_data["Tahun"].between(2019, 2024)][["Tahun", "IKP"]].copy()
 prov_data_filtered["Tahun"] = prov_data_filtered["Tahun"].astype(int)  # pastikan integer
 
 # Layout tabel + chart
-col1, col2 = st.columns([1, 2])
+col1, col2 = st.columns([1, 3])
 
 with col1:
     st.dataframe(prov_data_filtered.reset_index(drop=True))
 
 with col2:
-    chart = (
-        alt.Chart(prov_data_filtered)
-        .mark_line(point=True)
-        .encode(
-            x=alt.X("Tahun:O", title="Tahun"),
-            y=alt.Y("IKP:Q", title="IKP"),
-            tooltip=["Tahun", "IKP"]
-        )
-        .properties(
-            width=500,   # diperbesar
-            height=350,  # diperbesar
-            title="Tren IKP 5 Tahun"
-        )
+    base = alt.Chart(prov_data_filtered).encode(
+        x=alt.X("Tahun:O", title="Tahun"),
+        y=alt.Y("IKP:Q", title="IKP")
     )
+
+    # Line chart dengan titik
+    line = base.mark_line(point=True).encode(
+        tooltip=["Tahun", "IKP"]
+    )
+
+    # Label angka di atas titik
+    text = base.mark_text(align="left", dx=8, dy=-8).encode(
+        text=alt.Text("IKP:Q", format=".2f")
+    )
+
+    chart = (line + text).properties(
+        width=700,   # diperlebar
+        height=400,  # diperbesar
+        title="Tren IKP 5 Tahun"
+    )
+
     st.altair_chart(chart, use_container_width=False)

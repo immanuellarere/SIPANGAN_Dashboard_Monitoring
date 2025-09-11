@@ -14,10 +14,10 @@ from gnnwr.models import GTNNWR
 # --------------------------
 st.set_page_config(page_title="SIPANGAN Dashboard Monitoring", layout="wide")
 st.title("📊 SIPANGAN Dashboard Monitoring")
-st.caption("Inference GTNNWR dari .pt dengan pipeline yang sama seperti training")
+st.caption("Inference GTNNWR (.pt) dengan pipeline yang sama seperti training")
 
 DATA_PATH = "datasec.xlsx"
-MODEL_PATH = "gtnnwr_model.pt"   # file .pt yang kamu simpan saat training
+MODEL_PATH = "gtnnwr_model.pt"   # file .pt hasil training
 
 # --------------------------
 # Load data
@@ -41,7 +41,7 @@ st.subheader("🔍 Data Preview")
 st.dataframe(df.head())
 
 # --------------------------
-# Siapkan dataset (PENTING: sama persis seperti training)
+# Definisi fitur
 # --------------------------
 x_columns = [
     'Skor_PPH','Luas_Panen','Produktivitas','Produksi',
@@ -50,14 +50,14 @@ x_columns = [
     'OPD_Tikus','OPD_Blas','OPD_Hwar_Daun','OPD_Tungro'
 ]
 
-# split seperti training
+# Split sama seperti training
 train_data = df[df["Tahun"] <= 2022].copy()
 val_data   = df[df["Tahun"] == 2023].copy()
 test_data  = df[df["Tahun"] == 2024].copy()
 
 train_ds, val_ds, test_ds = init_dataset_split(
     train_data=train_data,
-    val_data=val_data if len(val_data) else train_data,   # hindari scaler error jika kosong
+    val_data=val_data if len(val_data) else train_data,
     test_data=test_data if len(test_data) else train_data,
     x_column=x_columns,
     y_column=["IKP"],
@@ -70,11 +70,10 @@ train_ds, val_ds, test_ds = init_dataset_split(
 )
 
 # --------------------------
-# Rekonstruksi arsitektur & load bobot .pt
+# Rekonstruksi arsitektur & load bobot
 # --------------------------
 @st.cache_resource
 def build_and_load_model():
-    # arsitektur sama seperti training
     optim_params = {
         "scheduler":"MultiStepLR",
         "scheduler_milestones":[1000, 2000, 3000, 4000],
@@ -82,21 +81,19 @@ def build_and_load_model():
     }
     wrapper = GTNNWR(
         train_ds, val_ds, test_ds,
-        [[3],[512,256,64]],             # <== hidden layer persis training
+        [[3],[512,256,64]],
         drop_out=0.5,
         optimizer="Adadelta",
         optimizer_params=optim_params,
         write_path="./gtnnwr_runs",
         model_name="GTNNWR_DSi"
     )
-    wrapper.add_graph()  # <== WAJIB: membangun graph/fit scaler seperti training
+    wrapper.add_graph()
 
-    # load .pt lalu salin state_dict
     pretrained = torch.load(MODEL_PATH, map_location="cpu", weights_only=False)
     try:
         wrapper._model.load_state_dict(pretrained.state_dict(), strict=True)
     except Exception:
-        # jika tipe modul sama, ini akan berhasil; kalau pun beda, coba longgar
         wrapper._model.load_state_dict(pretrained.state_dict(), strict=False)
     wrapper._model.eval()
     return wrapper
@@ -109,34 +106,24 @@ except Exception as e:
     st.stop()
 
 # --------------------------
-# Bentuk input persis seperti saat training → [N, 1, F]
+# Bentuk input untuk 2 branch
 # --------------------------
-def dataset_to_input(ds):
-    """
-    Ambil fitur X dari dataset gnnwr dan kembalikan tensor float32
-    dengan bentuk [N, 1, F], sesuai ekspektasi model.
-    """
-    if hasattr(ds, "x_data"):  # beberapa versi expose x_data yang sudah diskalakan
-        x = torch.tensor(ds.x_data, dtype=torch.float32)
-    else:
-        # __getitem__ biasanya (x, y) → ambil x lalu flatten jadi [F]
-        xs = [ds[i][0].flatten() for i in range(len(ds))]
-        x = torch.stack(xs)
-    if x.dim() == 2:
-        x = x.unsqueeze(1)   # [N, 1, F] seperti training
-    return x
+def make_inputs(df):
+    # Branch spasial: hanya longitude & latitude
+    x_spatial = torch.tensor(df[["Longitude","Latitude"]].values, dtype=torch.float32)
+    if x_spatial.dim() == 2:
+        x_spatial = x_spatial.unsqueeze(1)   # [N,1,2]
 
-try:
-    # Gabungkan urutan train → val → test supaya sejajar dengan df
-    x_train = dataset_to_input(train_ds)
-    x_val   = dataset_to_input(val_ds)
-    x_test  = dataset_to_input(test_ds)
-    x_input = torch.cat([x_train, x_val, x_test], dim=0)
+    # Branch fitur utama: semua indikator + Tahun
+    x_features = torch.tensor(df[x_columns+["Tahun"]].values, dtype=torch.float32)
+    if x_features.dim() == 2:
+        x_features = x_features.unsqueeze(1) # [N,1,F]
 
-    st.write("📐 Shape input final ke model:", x_input.shape)  # harus [N_total, 1, F]
-except Exception as e:
-    st.error(f"❌ Gagal menyiapkan input: {e}")
-    st.stop()
+    return x_spatial, x_features
+
+x_spatial, x_features = make_inputs(df)
+st.write("📐 Shape input spasial:", x_spatial.shape)   # target: [N,1,2]
+st.write("📐 Shape input fitur  :", x_features.shape)  # target: [N,1,152]
 
 # --------------------------
 # Prediksi
@@ -146,21 +133,17 @@ st.subheader("🤖 Analisis GTNNWR (.pt)")
 
 try:
     with torch.no_grad():
-        y_pred = gtnnwr._model(x_input)   # panggil model internal yang selaras
-    # panjang gabungan train+val+test sama dengan jumlah baris train+val+test
-    # pastikan urutannya kembali ke dataframe asli
-    df_ordered = pd.concat([train_data, val_data, test_data], axis=0)
-    df_ordered["IKP_Prediksi"] = y_pred.cpu().numpy().flatten()[:len(df_ordered)]
+        y_pred = gtnnwr._model((x_spatial, x_features))
 
-    # merge kembali supaya align ke df awal (jaga-jaga ada urutan berbeda)
-    out = df.merge(df_ordered[["id","IKP_Prediksi"]], on="id", how="left")
+    df_pred = df.copy()
+    df_pred["IKP_Prediksi"] = y_pred.cpu().numpy().flatten()[:len(df)]
 
     st.subheader("📑 Hasil Prediksi IKP")
-    st.dataframe(out[["Tahun", prov_col, "IKP", "IKP_Prediksi"]])
+    st.dataframe(df_pred[["Tahun", prov_col, "IKP", "IKP_Prediksi"]])
 
     st.download_button(
         "📥 Download CSV Prediksi",
-        out.to_csv(index=False).encode("utf-8"),
+        df_pred.to_csv(index=False).encode("utf-8"),
         file_name="prediksi_ikp.csv",
         mime="text/csv"
     )

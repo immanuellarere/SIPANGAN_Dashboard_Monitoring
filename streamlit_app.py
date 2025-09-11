@@ -123,13 +123,17 @@ st.write(f"### {prov} — IKP 2019–2024")
 
 # Filter tahun 2019–2024
 prov_data_filtered = prov_data[prov_data["Tahun"].between(2019, 2024)][["Tahun", "IKP"]].copy()
-prov_data_filtered["Tahun"] = prov_data_filtered["Tahun"].astype(int)  # pastikan integer
+prov_data_filtered["Tahun"] = prov_data_filtered["Tahun"].astype(str)  # ubah jadi string agar tidak diformat ribuan
 
 # Layout tabel + chart
 col1, col2 = st.columns([1, 3])
 
 with col1:
-    st.dataframe(prov_data_filtered.reset_index(drop=True))
+    st.dataframe(
+        prov_data_filtered.reset_index(drop=True),
+        use_container_width=True,   # tabel lebih lebar
+        height=350                  # tinggi diperbesar
+    )
 
 with col2:
     base = alt.Chart(prov_data_filtered).encode(
@@ -148,8 +152,8 @@ with col2:
     )
 
     chart = (line + text).properties(
-        width=700,   # diperlebar
-        height=400,  # diperbesar
+        width=750,   # diperlebar
+        height=420,  # diperbesar
         title="Tren IKP 5 Tahun"
     )
 

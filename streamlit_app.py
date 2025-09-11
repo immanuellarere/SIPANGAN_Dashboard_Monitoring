@@ -125,11 +125,11 @@ st.write(f"### {prov} — IKP 2019–2024")
 prov_data_filtered = (
     prov_data[prov_data["Tahun"].between(2019, 2024)][["Tahun", "IKP"]]
     .copy()
-    .reset_index(drop=True)  # hapus index
+    .reset_index(drop=True)
 )
-prov_data_filtered["Tahun"] = prov_data_filtered["Tahun"].astype(int)  # pastikan integer
+prov_data_filtered["Tahun"] = prov_data_filtered["Tahun"].astype(int)
 
-# Inject CSS untuk perbesar font tabel & lebarkan
+# Inject CSS untuk tabel lebih rapih & font lebih besar
 st.markdown(
     """
     <style>
@@ -137,22 +137,29 @@ st.markdown(
         font-size: 18px !important;
         text-align: center !important;
         width: 100% !important;
+        border-collapse: collapse !important;
+    }
+    th, td {
+        padding: 8px 16px !important;
+        text-align: center !important;
     }
     thead th {
         font-weight: bold !important;
-        text-align: center !important;
+        border-bottom: 2px solid #999 !important;
+    }
+    tbody tr:nth-child(even) {
+        background-color: #f9f9f9 !important;
     }
     </style>
     """,
     unsafe_allow_html=True
 )
 
-# Layout tabel + chart, lebar sama
-col1, col2 = st.columns([1, 1])
+# Layout tabel + chart
+col1, col2 = st.columns([1, 1.2])
 
 with col1:
-    # tampilkan tabel dengan lebar penuh
-    st.table(prov_data_filtered.style.format({"IKP": "{:.2f}"}))
+    st.table(prov_data_filtered)
 
 with col2:
     base = alt.Chart(prov_data_filtered).encode(
@@ -171,7 +178,8 @@ with col2:
     )
 
     chart = (line + text).properties(
-        height=420,
+        width=500,   # lebar chart pas dengan tabel
+        height=450,  # tinggi disejajarkan tabel
         title="IKP 5 Tahun"
     ).configure_axis(
         labelFontSize=14,
@@ -182,4 +190,4 @@ with col2:
         size=70
     )
 
-    st.altair_chart(chart, use_container_width=True)
+    st.altair_chart(chart, use_container_width=False)

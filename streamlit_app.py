@@ -41,7 +41,21 @@ except Exception as e:
 # --------------------------
 st.write("---")
 st.subheader("🔍 Data Preview")
-st.dataframe(df.head())   # tampilkan preview data
+
+# Filter provinsi (opsional)
+prov_filter = st.selectbox("Pilih Provinsi (opsional)", ["Semua"] + sorted(df[prov_col].unique()))
+
+if prov_filter != "Semua":
+    df_preview = df[df[prov_col] == prov_filter]
+else:
+    df_preview = df
+
+# tampilkan dataframe dengan scroll
+st.dataframe(
+    df_preview,
+    use_container_width=True,   # lebar penuh
+    height=400                  # tinggi area preview, bisa scroll
+)
 
 # --------------------------
 # Tentukan kolom Provinsi

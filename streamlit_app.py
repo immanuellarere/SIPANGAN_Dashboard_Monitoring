@@ -17,7 +17,7 @@ st.title("📊 SIPANGAN Dashboard Monitoring")
 st.caption("Inference GTNNWR (.pt) dengan pipeline sama seperti training")
 
 DATA_PATH = "datasec.xlsx"
-MODEL_PATH = "gtnnwr_model.pt"   # model hasil training (.pt)
+MODEL_PATH = "gtnnwr_model.pt"
 
 # --------------------------
 # Load dataset
@@ -50,7 +50,7 @@ x_columns = [
     'OPD_Tikus','OPD_Blas','OPD_Hwar_Daun','OPD_Tungro'
 ]
 
-# Split data sama dengan training
+# Split sama dengan training
 train_data = df[df["Tahun"] <= 2022].copy()
 val_data   = df[df["Tahun"] == 2023].copy()
 test_data  = df[df["Tahun"] == 2024].copy()
@@ -81,7 +81,7 @@ def load_model():
     }
     wrapper = GTNNWR(
         train_ds, val_ds, test_ds,
-        [[3],[512,256,64]],  # hidden layers sama seperti training
+        [[3],[512,256,64]],
         drop_out=0.5,
         optimizer="Adadelta",
         optimizer_params=optim_params,
@@ -106,24 +106,20 @@ except Exception as e:
     st.stop()
 
 # --------------------------
-# Bentuk input (2 branch)
+# Bentuk input (tensor gabungan saja)
 # --------------------------
-def make_inputs(df):
-    # branch spasial
-    x_spatial = torch.tensor(df[["Longitude","Latitude"]].values, dtype=torch.float32)
-    if x_spatial.dim() == 2:
-        x_spatial = x_spatial.unsqueeze(1)   # [N,1,2]
+try:
+    # gabungkan semua fitur + spatial + waktu, seperti training
+    x_all = x_columns + ["Longitude", "Latitude", "Tahun"]
+    x_input = torch.tensor(df[x_all].values, dtype=torch.float32)
 
-    # branch fitur (indikator + tahun)
-    x_features = torch.tensor(df[x_columns+["Tahun"]].values, dtype=torch.float32)
-    if x_features.dim() == 2:
-        x_features = x_features.unsqueeze(1) # [N,1,F]
+    if x_input.dim() == 2:
+        x_input = x_input.unsqueeze(1)   # [N,1,F]
 
-    return x_spatial, x_features
-
-x_spatial, x_features = make_inputs(df)
-st.write("📐 Shape input spasial:", x_spatial.shape)
-st.write("📐 Shape input fitur  :", x_features.shape)
+    st.write("📐 Shape input ke model:", x_input.shape)
+except Exception as e:
+    st.error(f"❌ Gagal membentuk input: {e}")
+    st.stop()
 
 # --------------------------
 # Prediksi
@@ -133,12 +129,10 @@ st.subheader("🤖 Analisis GTNNWR (.pt)")
 
 try:
     device = torch.device("cpu")
-    x_spatial = x_spatial.to(device)
-    x_features = x_features.to(device)
+    x_input = x_input.to(device)
 
     with torch.no_grad():
-        # 🚑 FIX: pakai list [ ] bukan tuple
-        y_pred = gtnnwr._model([x_spatial, x_features])
+        y_pred = gtnnwr._model(x_input)   # langsung tensor, bukan list/tuple
 
     df_pred = df.copy()
     df_pred["IKP_Prediksi"] = y_pred.cpu().numpy().flatten()[:len(df)]
@@ -155,4 +149,4 @@ try:
 
 except Exception as e:
     st.error(f"❌ Gagal menjalankan prediksi: {e}")
-    st.info("💡 Coba cek arsitektur model dengan `st.text(str(gtnnwr._model))` untuk memastikan input/output layer cocok.")
+    st.text(str(gtnnwr._model))

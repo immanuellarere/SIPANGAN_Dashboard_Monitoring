@@ -6,21 +6,18 @@ import geopandas as gpd
 import branca.colormap as cm
 import torch
 
-from gnnwr.datasets import init_dataset_split
-from gnnwr.models import GTNNWR
-
 # --------------------------
-# Halaman
+# Konfigurasi Halaman
 # --------------------------
 st.set_page_config(page_title="SIPANGAN Dashboard Monitoring", layout="wide")
 st.title("📊 SIPANGAN Dashboard Monitoring")
-st.caption("Inference GTNNWR (.pt) dengan pipeline sama seperti training")
+st.caption("Inference GTNNWR dari model .pt (full arsitektur + bobot)")
 
 DATA_PATH = "datasec.xlsx"
-MODEL_PATH = "gtnnwr_model.pt"   # file .pt hasil training
+MODEL_PATH = "gtnnwr_model.pt"   # hasil training yang disimpan dengan torch.save(model, ...)
 
 # --------------------------
-# Load data
+# Load Data
 # --------------------------
 try:
     df = pd.read_excel(DATA_PATH, engine="openpyxl") if DATA_PATH.endswith("xlsx") else pd.read_csv(DATA_PATH)
@@ -41,7 +38,23 @@ st.subheader("🔍 Data Preview")
 st.dataframe(df.head())
 
 # --------------------------
-# Definisi fitur (16 fitur)
+# Load Model .pt (langsung, tanpa rekonstruksi)
+# --------------------------
+@st.cache_resource
+def load_model():
+    model = torch.load(MODEL_PATH, map_location="cpu", weights_only=False)
+    model.eval()
+    return model
+
+try:
+    model = load_model()
+    st.success("✅ Model berhasil diload dari .pt (arsitektur + bobot)")
+except Exception as e:
+    st.error(f"❌ Gagal load model .pt: {e}")
+    st.stop()
+
+# --------------------------
+# Definisi Fitur Input (HARUS sama dengan training!)
 # --------------------------
 x_columns = [
     'Skor_PPH','Luas_Panen','Produktivitas','Produksi',
@@ -49,77 +62,20 @@ x_columns = [
     'OPD_Penggerek_Batang_Padi','OPD_Wereng_Batang_Coklat',
     'OPD_Tikus','OPD_Blas','OPD_Hwar_Daun','OPD_Tungro'
 ]
-x_all = x_columns + ["Tahun"]   # total 16 fitur
+x_all = x_columns + ["Tahun"]   # total 16 fitur sesuai training
 
 # --------------------------
-# Split dataset sama seperti training
+# Bentuk Input ke Model
 # --------------------------
-train_data = df[df["Tahun"] <= 2022].copy()
-val_data   = df[df["Tahun"] == 2023].copy()
-test_data  = df[df["Tahun"] == 2024].copy()
-
-train_ds, val_ds, test_ds = init_dataset_split(
-    train_data=train_data,
-    val_data=val_data if len(val_data) else train_data,
-    test_data=test_data if len(test_data) else train_data,
-    x_column=x_all,
-    y_column=["IKP"],
-    spatial_column=["Longitude","Latitude"],
-    temp_column=["Tahun"],
-    id_column=["id"],
-    use_model="gtnnwr",
-    batch_size=1024,
-    shuffle=False
-)
-
-# --------------------------
-# Rekonstruksi arsitektur & load bobot
-# --------------------------
-@st.cache_resource
-def build_and_load_model():
-    optim_params = {
-        "scheduler":"MultiStepLR",
-        "scheduler_milestones":[1000, 2000, 3000, 4000],
-        "scheduler_gamma":0.8,
-    }
-    wrapper = GTNNWR(
-        train_ds, val_ds, test_ds,
-        [[3],[512,256,64]],   # hidden layers sama seperti training
-        drop_out=0.5,
-        optimizer="Adadelta",
-        optimizer_params=optim_params,
-        write_path="./gtnnwr_runs",
-        model_name="GTNNWR_DSi"
-    )
-    wrapper.add_graph()
-
-    # load bobot .pt
-    pretrained = torch.load(MODEL_PATH, map_location="cpu", weights_only=False)
-    try:
-        wrapper._model.load_state_dict(pretrained.state_dict(), strict=True)
-    except Exception:
-        wrapper._model.load_state_dict(pretrained.state_dict(), strict=False)
-    wrapper._model.eval()
-    return wrapper
-
 try:
-    gtnnwr = build_and_load_model()
-    st.success("✅ Arsitektur dibangun & bobot .pt dimuat")
+    x_input = torch.tensor(df[x_all].values, dtype=torch.float32)
+    if x_input.dim() == 2:
+        x_input = x_input.unsqueeze(1)   # [N,1,16]
+
+    st.write("📐 Shape input ke model:", x_input.shape)
 except Exception as e:
-    st.error(f"❌ Gagal membangun/menyelaraskan model: {e}")
+    st.error(f"❌ Gagal membentuk input: {e}")
     st.stop()
-
-# --------------------------
-# Bentuk input final [N,1,16]
-# --------------------------
-def make_input(df):
-    x_tensor = torch.tensor(df[x_all].values, dtype=torch.float32)
-    if x_tensor.dim() == 2:
-        x_tensor = x_tensor.unsqueeze(1)   # [N,1,16]
-    return x_tensor
-
-x_input = make_input(df)
-st.write("📐 Shape input final:", x_input.shape)
 
 # --------------------------
 # Prediksi
@@ -129,7 +85,7 @@ st.subheader("🤖 Analisis GTNNWR (.pt)")
 
 try:
     with torch.no_grad():
-        y_pred = gtnnwr._model(x_input)
+        y_pred = model(x_input)
 
     df_pred = df.copy()
     df_pred["IKP_Prediksi"] = y_pred.cpu().numpy().flatten()[:len(df)]
@@ -145,3 +101,42 @@ try:
     )
 except Exception as e:
     st.error(f"❌ Gagal menjalankan prediksi: {e}")
+
+# --------------------------
+# Peta IKP (Opsional)
+# --------------------------
+st.write("---")
+st.subheader("🗺️ Peta Indonesia — IKP per Provinsi")
+
+try:
+    tahun_list = sorted(df["Tahun"].unique())
+    tahun_peta = st.selectbox("Pilih Tahun untuk Peta", tahun_list)
+    df_filtered = df_pred[df_pred["Tahun"] == tahun_peta].copy()
+
+    url = "https://raw.githubusercontent.com/ans-4175/peta-indonesia-geojson/master/indonesia-prov.geojson"
+    gdf = gpd.read_file(url)
+    gdf[prov_col] = gdf["Propinsi"].str.title()
+    df_filtered[prov_col] = df_filtered[prov_col].str.title()
+
+    ikp_min, ikp_max = df_filtered["IKP_Prediksi"].min(), df_filtered["IKP_Prediksi"].max()
+    bins = [0, 37.61, 48.27, 57.11, 65.96, 74.40, max(100, ikp_max + 1)]
+    colormap = cm.StepColormap(colors=['#4B0000', '#FF3333', '#FF9999',
+                                       '#CCFF99', '#66CC66', '#006600'],
+                               vmin=bins[0], vmax=bins[-1], index=bins,
+                               caption="Prediksi IKP")
+
+    m = folium.Map(location=[-2.5, 118], zoom_start=5)
+    gdf = gdf.merge(df_filtered[[prov_col, "IKP_Prediksi"]], on=prov_col, how="left")
+
+    folium.GeoJson(
+        gdf,
+        style_function=lambda f: {"fillColor": colormap(f["properties"]["IKP_Prediksi"]) if f["properties"]["IKP_Prediksi"] else "gray",
+                                  "fillOpacity": 0.7, "weight": 0.5, "color": "black"},
+        tooltip=folium.GeoJsonTooltip(fields=[prov_col, "IKP_Prediksi"])
+    ).add_to(m)
+
+    colormap.add_to(m)
+    st_folium(m, width=1000, height=600)
+
+except Exception as e:
+    st.warning(f"⚠️ Gagal memuat peta: {e}")

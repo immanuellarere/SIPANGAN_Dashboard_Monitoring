@@ -37,27 +37,6 @@ except Exception as e:
     st.stop()
 
 # --------------------------
-# Preview Data
-# --------------------------
-st.write("---")
-st.subheader("🔍 Data Preview")
-
-# Filter provinsi (opsional)
-prov_filter = st.selectbox("Pilih Provinsi (opsional)", ["Semua"] + sorted(df[prov_col].unique()))
-
-if prov_filter != "Semua":
-    df_preview = df[df[prov_col] == prov_filter]
-else:
-    df_preview = df
-
-# tampilkan dataframe dengan scroll
-st.dataframe(
-    df_preview,
-    use_container_width=True,   # lebar penuh
-    height=400                  # tinggi area preview, bisa scroll
-)
-
-# --------------------------
 # Tentukan kolom Provinsi
 # --------------------------
 if "Provinsi" in df.columns:
@@ -67,6 +46,28 @@ elif "Nama_Provinsi" in df.columns:
 else:
     st.error("❌ Dataset harus punya kolom 'Provinsi' atau 'Nama_Provinsi'")
     st.stop()
+
+# --------------------------
+# Preview Data
+# --------------------------
+st.write("---")
+st.subheader("🔍 Data Preview")
+
+# Filter provinsi (opsional)
+prov_list = ["Semua"] + sorted(df[prov_col].unique().tolist())
+prov_filter = st.selectbox("Pilih Provinsi (opsional)", prov_list)
+
+if prov_filter != "Semua":
+    df_preview = df[df[prov_col] == prov_filter]
+else:
+    df_preview = df
+
+# tampilkan dataframe dengan scroll
+st.dataframe(
+    df_preview,
+    use_container_width=True,
+    height=400
+)
 
 # --------------------------
 # Peta IKP per Provinsi

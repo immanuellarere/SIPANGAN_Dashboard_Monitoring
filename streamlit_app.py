@@ -10,17 +10,17 @@ from gnnwr.datasets import init_dataset_split
 from gnnwr.models import GTNNWR
 
 # --------------------------
-# Konfigurasi Halaman
+# Halaman
 # --------------------------
 st.set_page_config(page_title="SIPANGAN Dashboard Monitoring", layout="wide")
 st.title("📊 SIPANGAN Dashboard Monitoring")
-st.caption("Inference GTNNWR (.pt) dengan pipeline sama seperti training")
+st.caption("Inference GTNNWR (.pt) dengan pipeline training yang sama")
 
 DATA_PATH = "datasec.xlsx"
 MODEL_PATH = "gtnnwr_model.pt"   # file .pt hasil training
 
 # --------------------------
-# Load Dataset
+# Load data
 # --------------------------
 try:
     df = pd.read_excel(DATA_PATH, engine="openpyxl") if DATA_PATH.endswith("xlsx") else pd.read_csv(DATA_PATH)
@@ -31,7 +31,6 @@ except Exception as e:
     st.error(f"❌ Gagal membaca dataset: {e}")
     st.stop()
 
-# Tentukan kolom provinsi
 prov_col = "Provinsi" if "Provinsi" in df.columns else ("Nama_Provinsi" if "Nama_Provinsi" in df.columns else None)
 if prov_col is None:
     st.error("❌ Dataset harus punya kolom 'Provinsi' atau 'Nama_Provinsi'")
@@ -42,7 +41,7 @@ st.subheader("🔍 Data Preview")
 st.dataframe(df.head())
 
 # --------------------------
-# Definisi fitur sesuai training
+# Definisi fitur
 # --------------------------
 x_columns = [
     'Skor_PPH','Luas_Panen','Produktivitas','Produksi',
@@ -51,7 +50,7 @@ x_columns = [
     'OPD_Tikus','OPD_Blas','OPD_Hwar_Daun','OPD_Tungro'
 ]
 
-# Split dataset seperti training
+# Split sama seperti training
 train_data = df[df["Tahun"] <= 2022].copy()
 val_data   = df[df["Tahun"] == 2023].copy()
 test_data  = df[df["Tahun"] == 2024].copy()
@@ -71,58 +70,38 @@ train_ds, val_ds, test_ds = init_dataset_split(
 )
 
 # --------------------------
-# Load Model
+# Load model
 # --------------------------
 @st.cache_resource
 def load_model():
-    optim_params = {
-        "scheduler":"MultiStepLR",
-        "scheduler_milestones":[1000, 2000, 3000, 4000],
-        "scheduler_gamma":0.8,
-    }
-    wrapper = GTNNWR(
-        train_ds, val_ds, test_ds,
-        [[3],[512,256,64]],  # arsitektur hidden layer
-        drop_out=0.5,
-        optimizer="Adadelta",
-        optimizer_params=optim_params,
-        write_path="./gtnnwr_runs",
-        model_name="GTNNWR_DSi"
-    )
-    wrapper.add_graph()
-
-    pretrained = torch.load(MODEL_PATH, map_location="cpu", weights_only=False)
-    wrapper._model.load_state_dict(pretrained.state_dict(), strict=False)
-    wrapper._model.eval()
-    return wrapper._model
+    model = torch.load(MODEL_PATH, map_location="cpu", weights_only=False)
+    model.eval()
+    return model
 
 try:
     model = load_model()
     st.success("✅ Model berhasil diload dari .pt (arsitektur + bobot)")
 except Exception as e:
-    st.error(f"❌ Gagal load model .pt: {e}")
+    st.error(f"❌ Gagal load model: {e}")
     st.stop()
 
 # --------------------------
-# Bentuk Input Multi-Branch
+# Bentuk input [N,1,152] dari dataset split
 # --------------------------
-def dataset_to_branches(ds):
-    """Ambil input (x_spatial, x_features) persis dari dataset"""
-    xs = [ds[i][0] for i in range(len(ds))]   # setiap item: (spatial, features)
-    x_spatial  = torch.stack([item[0].squeeze(0) for item in xs])   # [N,2]
-    x_features = torch.stack([item[1].squeeze(0) for item in xs])   # [N,152]
-    return x_spatial, x_features
+def dataset_to_tensor(ds):
+    if hasattr(ds, "x_data"):
+        return torch.tensor(ds.x_data, dtype=torch.float32)
+    else:
+        xs = [ds[i][0].flatten() for i in range(len(ds))]
+        return torch.stack(xs)
 
-# Ambil train+val+test lalu gabung
-sp_train, ft_train = dataset_to_branches(train_ds)
-sp_val,   ft_val   = dataset_to_branches(val_ds)
-sp_test,  ft_test  = dataset_to_branches(test_ds)
+x_train = dataset_to_tensor(train_ds)
+x_val   = dataset_to_tensor(val_ds)
+x_test  = dataset_to_tensor(test_ds)
 
-x_spatial  = torch.cat([sp_train, sp_val, sp_test], dim=0).unsqueeze(1)   # [N,1,2]
-x_features = torch.cat([ft_train, ft_val, ft_test], dim=0).unsqueeze(1)   # [N,1,152]
+x_input = torch.cat([x_train, x_val, x_test], dim=0).unsqueeze(1)   # [N,1,152]
 
-st.write("📐 Shape input spasial :", x_spatial.shape)
-st.write("📐 Shape input fitur   :", x_features.shape)
+st.write("📐 Shape input final ke model:", x_input.shape)
 
 # --------------------------
 # Prediksi
@@ -132,11 +111,9 @@ st.subheader("🤖 Analisis GTNNWR (.pt)")
 
 try:
     with torch.no_grad():
-        # Masukkan ke model sebagai list of tensors
-        y_pred = model([x_spatial, x_features])
+        y_pred = model(x_input)
 
-    df_ordered = pd.concat([train_data, val_data, test_data], axis=0)
-    df_ordered = df_ordered.sort_values("id")
+    df_ordered = pd.concat([train_data, val_data, test_data]).sort_values("id")
     df_ordered["IKP_Prediksi"] = y_pred.cpu().numpy().flatten()[:len(df_ordered)]
 
     out = df.merge(df_ordered[["id","IKP_Prediksi"]], on="id", how="left")
@@ -152,4 +129,3 @@ try:
     )
 except Exception as e:
     st.error(f"❌ Gagal menjalankan prediksi: {e}")
-    st.info("💡 Coba cek kembali apakah jumlah fitur sudah tepat (harus 152).")

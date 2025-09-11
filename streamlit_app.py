@@ -155,18 +155,33 @@ with col1:
     st.table(prov_data_filtered)
 
 with col2:
-    chart = (
-        alt.Chart(prov_data_filtered)
-        .mark_line(point=True)
-        .encode(
-            x=alt.X("Tahun:O", title="Tahun"),
-            y=alt.Y("IKP:Q", title="IKP"),
-            tooltip=["Tahun", "IKP"]
-        )
-        .properties(
-            width=750,
-            height=420,
-            title="Tren IKP 5 Tahun"
-        )
+    base = alt.Chart(prov_data_filtered).encode(
+        x=alt.X("Tahun:O", title="Tahun", axis=alt.Axis(labelAngle=0)),  # label tahun lurus
+        y=alt.Y("IKP:Q", title="IKP")
     )
-    st.altair_chart(chart, use_container_width=False)
+
+    line = base.mark_line(point=True).encode(
+        tooltip=["Tahun", "IKP"]
+    )
+
+    # Tambahkan nilai IKP di tiap titik (ukuran kecil)
+    text = base.mark_text(align="left", dx=8, dy=-8, fontSize=12).encode(
+        text=alt.Text("IKP:Q", format=".2f")
+    )
+
+    chart = (line + text).properties(
+        width=750,
+        height=420,
+        title="IKP 5 Tahun"
+    ).configure_axis(
+        labelFontSize=14,
+        titleFontSize=16
+    ).configure_title(
+        fontSize=20,
+        anchor="middle"  # biar rata tengah
+    ).configure_point(
+        size=70
+    )
+
+    # Geser grafik ke kanan dengan padding
+    st.altair_chart(chart.configure_view(padding={"left": 50, "right": 20}), use_container_width=False)

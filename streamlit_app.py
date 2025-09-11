@@ -16,7 +16,7 @@ st.set_page_config(page_title="SIPANGAN Dashboard Monitoring", layout="wide")
 st.title("📊 SIPANGAN Dashboard Monitoring")
 st.caption("Inference GTNNWR dari .pt dengan pipeline yang sama seperti training")
 
-DATA_PATH = "Data SEC 2025 (2).xlsx"
+DATA_PATH = "datasec.xlsx"
 MODEL_PATH = "gtnnwr_model.pt"   # file .pt yang kamu simpan saat training
 
 # --------------------------

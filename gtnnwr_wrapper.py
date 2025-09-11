@@ -20,7 +20,7 @@ class GTNNWRWrapper:
         ]
         self.extra_cols = ["Tahun"]   # hanya Tahun supaya total = 16 fitur
 
-        # Kolom target (output tunggal)
+        # Target kolom (output tunggal)
         self.y_column = ["IKP"]
         self.prov_col = prov_col
 
@@ -30,8 +30,7 @@ class GTNNWRWrapper:
         if train_dataset is not None:
             self.model = GTNNWR(
                 train_dataset, val_dataset, test_dataset,
-                # hidden layers harus sama seperti model lama
-                [[3], [512, 256, 64]],
+                [[3], [512, 256, 64]],   # hidden layers sesuai model lama
                 drop_out=0.5,
                 optimizer="Adadelta",
                 optimizer_params={
@@ -43,9 +42,10 @@ class GTNNWRWrapper:
                 model_name="GTNNWR_DSi"
             )._model
 
-            # PASTIKAN layer output = 16 (sesuai model lama)
-            in_features = self.model.fc.full3.layer.in_features
-            self.model.fc.full3.layer = torch.nn.Linear(in_features, 16)
+            # Paksa layer terakhir = 16 output (bukan 19)
+            last_idx = len(self.model) - 1
+            in_features = self.model[last_idx].in_features
+            self.model[last_idx] = torch.nn.Linear(in_features, 16)
 
         else:
             self.model = None
@@ -58,8 +58,7 @@ class GTNNWRWrapper:
             raise ValueError("❌ Model belum diinisialisasi dengan dataset.")
 
         state_dict = torch.load(model_path, map_location="cpu")
-
-        # strict=True karena kita sudah samakan arsitektur → tidak boleh mismatch
+        # strict=True karena arsitektur sudah disamakan dengan model lama
         self.model.load_state_dict(state_dict, strict=True)
         self.model.eval()
         print(f"✅ Model lama (.pth) berhasil diload dari {model_path}")
@@ -95,11 +94,11 @@ class GTNNWRWrapper:
         if not coefs:
             return None
 
-        # ambil layer terakhir
+        # Ambil layer terakhir (matrix bobot)
         last_layer_name = list(coefs.keys())[-1]
         coef_matrix = coefs[last_layer_name]
 
-        # pastikan kolom sesuai 16 fitur lama
+        # Pastikan kolom sesuai jumlah fitur (16)
         x_columns = self.base_x_columns + self.extra_cols
         coef_cols = (
             x_columns
@@ -110,7 +109,7 @@ class GTNNWRWrapper:
         coef_df = pd.DataFrame(coef_matrix, columns=coef_cols)
         coef_df["Intercept"] = 0.0
 
-        # replikasi sesuai jumlah baris data
+        # Replikasi sesuai jumlah baris data
         coef_df = pd.concat([coef_df] * len(data), ignore_index=True)
         coef_df[self.prov_col] = data[self.prov_col].values
         coef_df["Tahun"] = data["Tahun"].values

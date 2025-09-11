@@ -178,8 +178,8 @@ with col2:
     )
 
     chart = (line + text).properties(
-        width=500,   # lebar chart pas dengan tabel
-        height=450,  # tinggi disejajarkan tabel
+        width=700,   # 🔥 dilebarkan (dari 500 → 700)
+        height=420,
         title="IKP 5 Tahun"
     ).configure_axis(
         labelFontSize=14,

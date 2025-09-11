@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 import torch
-
 from gnnwr.datasets import init_dataset_split
 
 # --------------------------
@@ -31,10 +30,6 @@ if prov_col is None:
     st.error("❌ Dataset harus punya kolom 'Provinsi' atau 'Nama_Provinsi'")
     st.stop()
 
-st.write("---")
-st.subheader("🔍 Data Preview")
-st.dataframe(df.head())
-
 # --------------------------
 # Definisi fitur
 # --------------------------
@@ -45,7 +40,9 @@ x_columns = [
     'OPD_Tikus','OPD_Blas','OPD_Hwar_Daun','OPD_Tungro'
 ]
 
-# Split sama seperti training
+# --------------------------
+# Split dataset (wajib sama dengan training)
+# --------------------------
 train_data = df[df["Tahun"] <= 2022].copy()
 val_data   = df[df["Tahun"] == 2023].copy()
 test_data  = df[df["Tahun"] == 2024].copy()
@@ -81,10 +78,9 @@ except Exception as e:
     st.stop()
 
 # --------------------------
-# Bentuk Input dari Dataset Split
+# Ambil X dari dataset split (bukan df mentah!)
 # --------------------------
 def dataset_to_tensor(ds):
-    # gunakan fitur hasil transformasi (x_data) → sesuai training
     if hasattr(ds, "x_data"):
         return torch.tensor(ds.x_data, dtype=torch.float32)
     else:
@@ -95,9 +91,7 @@ x_train = dataset_to_tensor(train_ds)
 x_val   = dataset_to_tensor(val_ds)
 x_test  = dataset_to_tensor(test_ds)
 
-# gabung
 x_input = torch.cat([x_train, x_val, x_test], dim=0).unsqueeze(1)  # [N,1,152]
-
 st.write("📐 Shape input final ke model:", x_input.shape)
 
 # --------------------------
@@ -110,6 +104,7 @@ try:
     with torch.no_grad():
         y_pred = model(x_input)
 
+    # satukan prediksi dengan df asli
     df_ordered = pd.concat([train_data, val_data, test_data]).sort_values("id")
     df_ordered["IKP_Prediksi"] = y_pred.cpu().numpy().flatten()[:len(df_ordered)]
 

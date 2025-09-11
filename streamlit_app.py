@@ -77,7 +77,7 @@ st.subheader("🗺️ IKP Provinsi Indonesia")
 
 try:
     tahun_list = sorted(df["Tahun"].unique())
-    tahun_peta = st.selectbox("Pilih Tahun", tahun_list)
+    tahun_peta = st.selectbox("Pilih Tahun untuk IKP", tahun_list)
 
     df_filtered = df[df["Tahun"] == tahun_peta].copy()
 

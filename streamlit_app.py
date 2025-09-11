@@ -73,7 +73,7 @@ st.dataframe(
 # Peta IKP per Provinsi
 # --------------------------
 st.write("---")
-st.subheader("🗺️ Peta Indonesia — IKP per Provinsi")
+st.subheader("🗺️ IKP Provinsi Indonesia")
 
 try:
     tahun_list = sorted(df["Tahun"].unique())

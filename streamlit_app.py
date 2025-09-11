@@ -223,7 +223,7 @@ else:
 st.write("---")
 st.subheader("🧮 Simulasi IKP")
 
-MODEL_PATH = "modelling.xlsx"
+MODEL_PATH = "Modelling.xlsx"
 
 try:
     coef_df = pd.read_excel(MODEL_PATH, engine="openpyxl")

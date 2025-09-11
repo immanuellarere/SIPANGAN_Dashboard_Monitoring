@@ -129,7 +129,7 @@ prov_data_filtered = (
 )
 prov_data_filtered["Tahun"] = prov_data_filtered["Tahun"].astype(int)  # pastikan integer
 
-# Inject CSS untuk perbesar font tabel
+# Inject CSS untuk perbesar font tabel & lebarkan
 st.markdown(
     """
     <style>
@@ -147,11 +147,11 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# Layout tabel + chart (proporsi sama)
-col1, col2 = st.columns(2)
+# Layout tabel + chart, lebar sama
+col1, col2 = st.columns([1, 1])
 
 with col1:
-    # tampilkan tabel hanya Tahun & IKP
+    # tampilkan tabel dengan lebar penuh
     st.table(prov_data_filtered.style.format({"IKP": "{:.2f}"}))
 
 with col2:
@@ -164,7 +164,6 @@ with col2:
         tooltip=["Tahun", "IKP"]
     )
 
-    # Nilai IKP kecil di tiap titik
     text = base.mark_text(
         align="left", dx=5, dy=-8, fontSize=12, color="black"
     ).encode(
@@ -172,7 +171,7 @@ with col2:
     )
 
     chart = (line + text).properties(
-        height=400,
+        height=420,
         title="IKP 5 Tahun"
     ).configure_axis(
         labelFontSize=14,

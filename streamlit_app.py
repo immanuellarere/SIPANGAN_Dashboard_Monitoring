@@ -21,7 +21,7 @@ st.caption("Monitoring Indeks Ketahanan Pangan (IKP) berbasis GTNNWR Pretrained 
 # Load Dataset
 # --------------------------
 DATA_PATH = "datasec.xlsx"
-MODEL_PATH = "GTNNWR_DSi_model.pth"   # pakai state_dict .pth
+MODEL_PATH = "GTNNWR_DSi.pth"   # pakai state_dict .pth
 
 try:
     df = pd.read_excel(DATA_PATH, engine="openpyxl") if DATA_PATH.endswith("xlsx") else pd.read_csv(DATA_PATH)

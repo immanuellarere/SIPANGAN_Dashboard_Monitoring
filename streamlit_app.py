@@ -122,21 +122,25 @@ prov_data = df[df[prov_col] == prov].copy()
 st.write(f"### {prov} — IKP 2019–2024")
 
 # Filter tahun 2019–2024
-prov_data_filtered = prov_data[prov_data["Tahun"].between(2019, 2024)][["Tahun", "IKP"]].copy()
-prov_data_filtered["Tahun"] = prov_data_filtered["Tahun"].astype(int)  # biar tanpa koma
+prov_data_filtered = (
+    prov_data[prov_data["Tahun"].between(2019, 2024)][["Tahun", "IKP"]]
+    .copy()
+    .reset_index(drop=True)  # hapus index
+)
+prov_data_filtered["Tahun"] = prov_data_filtered["Tahun"].astype(int)  # pastikan integer
 
-# Inject CSS untuk perbesar font & lebarkan tabel
+# Inject CSS untuk perbesar font tabel
 st.markdown(
     """
     <style>
-    .stDataFrame div[data-testid="stDataFrameCell"] {
-        font-size: 18px !important;   /* isi tabel */
-        text-align: center;
+    table {
+        font-size: 18px !important;
+        text-align: center !important;
+        width: 100% !important;
     }
-    .stDataFrame div[data-testid="stDataFrameColumn"] {
-        font-size: 18px !important;   /* header tabel */
-        font-weight: bold;
-        text-align: center;
+    thead th {
+        font-weight: bold !important;
+        text-align: center !important;
     }
     </style>
     """,
@@ -147,7 +151,7 @@ st.markdown(
 col1, col2 = st.columns([1, 3])
 
 with col1:
-    # tampilkan tabel tanpa index
+    # tampilkan tabel hanya Tahun & IKP
     st.table(prov_data_filtered)
 
 with col2:

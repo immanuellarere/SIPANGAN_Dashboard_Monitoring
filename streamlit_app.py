@@ -110,7 +110,7 @@ st.subheader("🤖 Analisis GTNNWR (.pt)")
 df_pred = None
 try:
     # ----------------------
-    # Buat dataset penuh untuk inference
+    # Buat dataset penuh untuk inference (tidak ada val/test kosong)
     # ----------------------
     x_columns = [
         'Skor_PPH', 'Luas_Panen', 'Produktivitas', 'Produksi',
@@ -120,9 +120,9 @@ try:
     ]
 
     full_dataset, _, _ = init_dataset_split(
-        train_data=df,            # pakai seluruh data
-        val_data=df.iloc[0:0],    # kosong
-        test_data=df.iloc[0:0],   # kosong
+        train_data=df,   # pakai seluruh data
+        val_data=df,     # isi ulang biar scaler tidak error
+        test_data=df,    # isi ulang biar scaler tidak error
         x_column=x_columns,
         y_column=["IKP"],
         spatial_column=["Longitude", "Latitude"],
@@ -141,7 +141,7 @@ try:
     with torch.no_grad():
         y_pred = model(x_input)
 
-    # Pastikan panjang prediksi sama dengan jumlah baris df
+    # Panjang y_pred = panjang df
     df_pred = df.copy()
     df_pred["IKP_Prediksi"] = y_pred.numpy().flatten()[:len(df)]
 

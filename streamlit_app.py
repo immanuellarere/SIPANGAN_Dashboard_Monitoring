@@ -14,7 +14,7 @@ from gnnwr.models import GTNNWR
 # --------------------------
 st.set_page_config(page_title="SIPANGAN Dashboard Monitoring", layout="wide")
 st.title("📊 SIPANGAN Dashboard Monitoring")
-st.caption("Inference GTNNWR (.pt) dengan pipeline yang sama seperti training")
+st.caption("Inference GTNNWR (.pt) dengan pipeline sama seperti training")
 
 DATA_PATH = "datasec.xlsx"
 MODEL_PATH = "gtnnwr_model.pt"   # file .pt hasil training
@@ -41,7 +41,7 @@ st.subheader("🔍 Data Preview")
 st.dataframe(df.head())
 
 # --------------------------
-# Definisi fitur
+# Definisi fitur (16 fitur)
 # --------------------------
 x_columns = [
     'Skor_PPH','Luas_Panen','Produktivitas','Produksi',
@@ -49,8 +49,11 @@ x_columns = [
     'OPD_Penggerek_Batang_Padi','OPD_Wereng_Batang_Coklat',
     'OPD_Tikus','OPD_Blas','OPD_Hwar_Daun','OPD_Tungro'
 ]
+x_all = x_columns + ["Tahun"]   # total 16 fitur
 
-# Split sama seperti training
+# --------------------------
+# Split dataset sama seperti training
+# --------------------------
 train_data = df[df["Tahun"] <= 2022].copy()
 val_data   = df[df["Tahun"] == 2023].copy()
 test_data  = df[df["Tahun"] == 2024].copy()
@@ -59,7 +62,7 @@ train_ds, val_ds, test_ds = init_dataset_split(
     train_data=train_data,
     val_data=val_data if len(val_data) else train_data,
     test_data=test_data if len(test_data) else train_data,
-    x_column=x_columns,
+    x_column=x_all,
     y_column=["IKP"],
     spatial_column=["Longitude","Latitude"],
     temp_column=["Tahun"],
@@ -81,7 +84,7 @@ def build_and_load_model():
     }
     wrapper = GTNNWR(
         train_ds, val_ds, test_ds,
-        [[3],[512,256,64]],
+        [[3],[512,256,64]],   # hidden layers sama seperti training
         drop_out=0.5,
         optimizer="Adadelta",
         optimizer_params=optim_params,
@@ -90,6 +93,7 @@ def build_and_load_model():
     )
     wrapper.add_graph()
 
+    # load bobot .pt
     pretrained = torch.load(MODEL_PATH, map_location="cpu", weights_only=False)
     try:
         wrapper._model.load_state_dict(pretrained.state_dict(), strict=True)
@@ -106,24 +110,16 @@ except Exception as e:
     st.stop()
 
 # --------------------------
-# Bentuk input untuk 2 branch
+# Bentuk input final [N,1,16]
 # --------------------------
-def make_inputs(df):
-    # Branch spasial: hanya longitude & latitude
-    x_spatial = torch.tensor(df[["Longitude","Latitude"]].values, dtype=torch.float32)
-    if x_spatial.dim() == 2:
-        x_spatial = x_spatial.unsqueeze(1)   # [N,1,2]
+def make_input(df):
+    x_tensor = torch.tensor(df[x_all].values, dtype=torch.float32)
+    if x_tensor.dim() == 2:
+        x_tensor = x_tensor.unsqueeze(1)   # [N,1,16]
+    return x_tensor
 
-    # Branch fitur utama: semua indikator + Tahun
-    x_features = torch.tensor(df[x_columns+["Tahun"]].values, dtype=torch.float32)
-    if x_features.dim() == 2:
-        x_features = x_features.unsqueeze(1) # [N,1,F]
-
-    return x_spatial, x_features
-
-x_spatial, x_features = make_inputs(df)
-st.write("📐 Shape input spasial:", x_spatial.shape)   # target: [N,1,2]
-st.write("📐 Shape input fitur  :", x_features.shape)  # target: [N,1,152]
+x_input = make_input(df)
+st.write("📐 Shape input final:", x_input.shape)
 
 # --------------------------
 # Prediksi
@@ -133,15 +129,7 @@ st.subheader("🤖 Analisis GTNNWR (.pt)")
 
 try:
     with torch.no_grad():
-        # GTNNWR biasanya expect dictionary, bukan tuple
-        try:
-            y_pred = gtnnwr._model({
-                "stpnn": x_spatial,
-                "swnn": x_features
-            })
-        except Exception:
-            # fallback: coba list
-            y_pred = gtnnwr._model([x_spatial, x_features])
+        y_pred = gtnnwr._model(x_input)
 
     df_pred = df.copy()
     df_pred["IKP_Prediksi"] = y_pred.cpu().numpy().flatten()[:len(df)]

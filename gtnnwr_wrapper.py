@@ -7,18 +7,21 @@ from gnnwr.datasets import init_dataset_split
 
 class GTNNWRWrapper:
     def __init__(self, train_dataset=None, val_dataset=None, test_dataset=None, prov_col="Provinsi"):
+        # Model lama hanya pakai 16 fitur (bukan 18)
+        # Misalnya: 15 base + 1 temporal (Tahun) → total 16
         self.base_x_columns = [
             'Skor_PPH', 'Luas_Panen', 'Produktivitas', 'Produksi',
             'Tanah_Longsor', 'Banjir', 'Kekeringan', 'Kebakaran', 'Cuaca',
             'OPD_Penggerek_Batang_Padi', 'OPD_Wereng_Batang_Coklat',
             'OPD_Tikus', 'OPD_Blas', 'OPD_Hwar_Daun', 'OPD_Tungro'
         ]
-        self.extra_cols = ["Longitude", "Latitude", "Tahun"]
+        # model lama kemungkinan hanya tambah "Tahun"
+        self.extra_cols = ["Tahun"]
 
         self.y_column = ["IKP"]
         self.prov_col = prov_col
 
-        # kalau dataset disediakan, build GTNNWR
+        # kalau dataset disediakan → build ulang arsitektur sesuai model lama
         if train_dataset is not None:
             self.model = GTNNWR(
                 train_dataset, val_dataset, test_dataset,
@@ -41,15 +44,16 @@ class GTNNWRWrapper:
         if self.model is None:
             raise ValueError("❌ Model belum diinisialisasi dengan dataset.")
         state_dict = torch.load(model_path, map_location="cpu")
-        self.model.load_state_dict(state_dict, strict=True)   # strict=True biar ketahuan mismatch
+        self.model.load_state_dict(state_dict, strict=True)  # harus match
         self.model.eval()
-        print(f"✅ Model .pth berhasil diload dari {model_path}")
+        print(f"✅ Model lama (.pth) berhasil diload dari {model_path}")
         return True
 
     # -------------------------
     # Prediksi
     # -------------------------
     def predict(self, data: pd.DataFrame):
+        # gunakan hanya 16 fitur sesuai model lama
         x_columns = self.base_x_columns + self.extra_cols
         x_input = torch.tensor(data[x_columns].values, dtype=torch.float32)
 
@@ -78,6 +82,7 @@ class GTNNWRWrapper:
         last_layer_name = list(coefs.keys())[-1]
         coef_matrix = coefs[last_layer_name]
 
+        # hanya 16 kolom sesuai model lama
         x_columns = self.base_x_columns + self.extra_cols
         coef_cols = x_columns if coef_matrix.shape[1] == len(x_columns) else [f"feat_{i}" for i in range(coef_matrix.shape[1])]
 

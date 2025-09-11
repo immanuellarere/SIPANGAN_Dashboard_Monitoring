@@ -223,6 +223,8 @@ else:
 st.write("---")
 st.subheader("🧮 Simulasi IKP")
 
+MODEL_PATH = "modelling.xlsx"
+
 try:
     coef_df = pd.read_excel(MODEL_PATH, engine="openpyxl")
 except Exception as e:
@@ -232,6 +234,7 @@ except Exception as e:
 # Ambil koefisien hanya tahun 2024
 coef_2024 = coef_df[coef_df["waktu"] == 2024]
 
+# Pilih provinsi
 prov_sim = st.selectbox("Pilih Provinsi untuk Simulasi", coef_2024["ID"].unique())
 
 row = coef_2024[coef_2024["ID"] == prov_sim]
@@ -250,12 +253,14 @@ else:
         with cols[i % 3]:
             inputs[var_name] = st.number_input(var_name, value=1.0, step=0.1)
 
-    # Hitung IKP simulasi (koef * X + bias)
-    ikp_sim = sum(inputs[v] * row[f"coef_{v}"] for v in inputs) + bias
+    # Tombol run simulation
+    if st.button("▶️ Run Simulation"):
+        # Hitung IKP simulasi (koef * X + bias)
+        ikp_sim = sum(inputs[v] * row[f"coef_{v}"] for v in inputs) + bias
 
-    # Tampilkan hasil
-    st.markdown("### 🎯 Hasil IKP Simulasi")
-    st.markdown(
-        f"<h2 style='text-align:center; color:#333;'>{ikp_sim:.2f}</h2>",
-        unsafe_allow_html=True
-    )
+        # Tampilkan hasil
+        st.markdown("### 🎯 Hasil IKP Simulasi")
+        st.markdown(
+            f"<h2 style='text-align:center; color:#2E86C1;'>{ikp_sim:.2f}</h2>",
+            unsafe_allow_html=True
+        )

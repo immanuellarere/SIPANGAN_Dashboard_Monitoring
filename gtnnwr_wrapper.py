@@ -6,8 +6,7 @@ from gnnwr.datasets import init_dataset_split
 
 
 class GTNNWRWrapper:
-    def __init__(self, train_dataset, val_dataset, test_dataset, prov_col="Provinsi"):
-        # fitur utama (dari training)
+    def __init__(self, train_dataset=None, val_dataset=None, test_dataset=None, prov_col="Provinsi"):
         self.base_x_columns = [
             'Skor_PPH', 'Luas_Panen', 'Produktivitas', 'Produksi',
             'Tanah_Longsor', 'Banjir', 'Kekeringan', 'Kebakaran', 'Cuaca',
@@ -19,25 +18,30 @@ class GTNNWRWrapper:
         self.y_column = ["IKP"]
         self.prov_col = prov_col
 
-        # bangun ulang arsitektur model
-        self.model = GTNNWR(
-            train_dataset, val_dataset, test_dataset,
-            [[3], [512, 256, 64]],
-            drop_out=0.5,
-            optimizer="Adadelta",
-            optimizer_params={"scheduler": "MultiStepLR",
-                              "scheduler_milestones": [1000, 2000, 3000, 4000],
-                              "scheduler_gamma": 0.8},
-            write_path="./gtnnwr_runs",
-            model_name="GTNNWR_DSi"
-        )._model   # ambil nn.Module asli
+        # kalau dataset disediakan, build GTNNWR
+        if train_dataset is not None:
+            self.model = GTNNWR(
+                train_dataset, val_dataset, test_dataset,
+                [[3], [512, 256, 64]],
+                drop_out=0.5,
+                optimizer="Adadelta",
+                optimizer_params={"scheduler": "MultiStepLR",
+                                  "scheduler_milestones": [1000, 2000, 3000, 4000],
+                                  "scheduler_gamma": 0.8},
+                write_path="./gtnnwr_runs",
+                model_name="GTNNWR_DSi"
+            )._model
+        else:
+            self.model = None
 
     # -------------------------
     # Load bobot .pth
     # -------------------------
     def load(self, model_path: str):
+        if self.model is None:
+            raise ValueError("❌ Model belum diinisialisasi dengan dataset.")
         state_dict = torch.load(model_path, map_location="cpu")
-        self.model.load_state_dict(state_dict)
+        self.model.load_state_dict(state_dict, strict=True)   # strict=True biar ketahuan mismatch
         self.model.eval()
         print(f"✅ Model .pth berhasil diload dari {model_path}")
         return True
@@ -75,15 +79,11 @@ class GTNNWRWrapper:
         coef_matrix = coefs[last_layer_name]
 
         x_columns = self.base_x_columns + self.extra_cols
-        if coef_matrix.shape[1] != len(x_columns):
-            coef_cols = [f"feat_{i}" for i in range(coef_matrix.shape[1])]
-        else:
-            coef_cols = x_columns
+        coef_cols = x_columns if coef_matrix.shape[1] == len(x_columns) else [f"feat_{i}" for i in range(coef_matrix.shape[1])]
 
         coef_df = pd.DataFrame(coef_matrix, columns=coef_cols)
         coef_df["Intercept"] = 0.0
 
-        # gandakan agar match ke provinsi+tahun
         coef_df = pd.concat([coef_df] * len(data), ignore_index=True)
         coef_df[self.prov_col] = data[self.prov_col].values
         coef_df["Tahun"] = data["Tahun"].values

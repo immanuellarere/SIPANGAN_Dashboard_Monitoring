@@ -17,7 +17,7 @@ st.caption("Monitoring Indeks Ketahanan Pangan (IKP) berbasis GTNNWR Pretrained 
 # Load Dataset
 # --------------------------
 DATA_PATH = "datasec.xlsx"
-MODEL_PATH = "gtnnwr_model.pt"   # full model .pt
+MODEL_PATH = "GTNNWR_DSi_model.pt"   # full model .pt
 
 try:
     df = pd.read_excel(DATA_PATH, engine="openpyxl") if DATA_PATH.endswith("xlsx") else pd.read_csv(DATA_PATH)
@@ -48,7 +48,8 @@ st.dataframe(df.head())
 # --------------------------
 @st.cache_resource
 def load_model():
-    model = torch.load(MODEL_PATH, map_location="cpu")
+    # pakai weights_only=False biar bisa load full model .pt di PyTorch 2.6+
+    model = torch.load(MODEL_PATH, map_location="cpu", weights_only=False)
     model.eval()
     return model
 
@@ -106,8 +107,7 @@ st.subheader("🤖 Analisis GTNNWR (.pt)")
 
 df_pred = None
 try:
-    # --- pastikan input sesuai dengan jumlah fitur yang dipakai saat training ---
-    # ⚠️ ganti list fitur ini agar cocok dengan model Anda (kemarin terdeteksi 152 input!)
+    # ⚠️ pilih kolom input sesuai dengan training (kemarin dari print terlihat input layer = 152 fitur!)
     x_columns = [c for c in df.columns if c not in ["IKP", prov_col, "id"]]
 
     x_input = torch.tensor(df[x_columns].values, dtype=torch.float32)

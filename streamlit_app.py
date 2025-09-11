@@ -114,7 +114,7 @@ try:
     val_data   = df[df["Tahun"] == 2023]
     test_data  = df[df["Tahun"] == 2024]
 
-    # gunakan nama kolom hasil rename (snake_case)
+    # kolom input (snake_case, sudah sesuai rename)
     x_columns = [
         'Skor_PPH', 'Luas_Panen', 'Produktivitas', 'Produksi',
         'Tanah_Longsor', 'Banjir', 'Kekeringan', 'Kebakaran', 'Cuaca',
@@ -137,8 +137,9 @@ try:
         shuffle=False
     )
 
-    # Ambil tensor X dari train_dataset (sudah diproses jadi 152 fitur)
-    x_input = torch.tensor(train_dataset.x_data, dtype=torch.float32)
+    # Ambil semua fitur X dari dataset dengan indexing
+    x_all = [train_dataset[i][0] for i in range(len(train_dataset))]
+    x_input = torch.stack(x_all)
 
     with torch.no_grad():
         y_pred = model(x_input)

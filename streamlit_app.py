@@ -9,7 +9,7 @@ from gnnwr.datasets import init_dataset_split
 # --------------------------
 st.set_page_config(page_title="SIPANGAN Dashboard Monitoring", layout="wide")
 st.title("📊 SIPANGAN Dashboard Monitoring")
-st.caption("Inference GTNNWR dengan pipeline yang sama (tanpa shape mismatch)")
+st.caption("Inference GTNNWR dengan input persis pipeline training")
 
 DATA_PATH = "datasec.xlsx"
 MODEL_PATH = "gtnnwr_model.pt"
@@ -36,7 +36,7 @@ st.subheader("🔍 Data Preview")
 st.dataframe(df.head())
 
 # --------------------------
-# Definisi Fitur
+# Definisi fitur
 # --------------------------
 x_columns = [
     'Skor_PPH','Luas_Panen','Produktivitas','Produksi',
@@ -45,7 +45,7 @@ x_columns = [
     'OPD_Tikus','OPD_Blas','OPD_Hwar_Daun','OPD_Tungro'
 ]
 
-# Split sama dengan training
+# Split sama seperti training
 train_data = df[df["Tahun"] <= 2022].copy()
 val_data   = df[df["Tahun"] == 2023].copy()
 test_data  = df[df["Tahun"] == 2024].copy()
@@ -75,15 +75,16 @@ def load_model():
 
 try:
     model = load_model()
-    st.success("✅ Model berhasil diload dari .pt")
+    st.success("✅ Model berhasil diload dari .pt (arsitektur + bobot)")
 except Exception as e:
     st.error(f"❌ Gagal load model: {e}")
     st.stop()
 
 # --------------------------
-# Siapkan Input dari Dataset Split
+# Bentuk Input dari Dataset Split
 # --------------------------
 def dataset_to_tensor(ds):
+    # gunakan fitur hasil transformasi (x_data) → sesuai training
     if hasattr(ds, "x_data"):
         return torch.tensor(ds.x_data, dtype=torch.float32)
     else:
@@ -94,6 +95,7 @@ x_train = dataset_to_tensor(train_ds)
 x_val   = dataset_to_tensor(val_ds)
 x_test  = dataset_to_tensor(test_ds)
 
+# gabung
 x_input = torch.cat([x_train, x_val, x_test], dim=0).unsqueeze(1)  # [N,1,152]
 
 st.write("📐 Shape input final ke model:", x_input.shape)

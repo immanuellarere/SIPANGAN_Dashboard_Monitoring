@@ -24,6 +24,7 @@ MODEL_PATH = "gtnnwr_model.pt"   # full model .pt
 try:
     df = pd.read_excel(DATA_PATH, engine="openpyxl") if DATA_PATH.endswith("xlsx") else pd.read_csv(DATA_PATH)
     df = df.fillna(0)
+    # pastikan nama kolom snake_case
     df = df.rename(columns=lambda x: x.strip().replace(" ", "_"))
     df["id"] = range(len(df))
 except Exception as e:
@@ -113,11 +114,12 @@ try:
     val_data   = df[df["Tahun"] == 2023]
     test_data  = df[df["Tahun"] == 2024]
 
+    # gunakan nama kolom hasil rename (snake_case)
     x_columns = [
-        'Skor PPH', 'Luas_Panen', 'Produktivitas', 'Produksi',
+        'Skor_PPH', 'Luas_Panen', 'Produktivitas', 'Produksi',
         'Tanah_Longsor', 'Banjir', 'Kekeringan', 'Kebakaran', 'Cuaca',
-        'OPD Penggerek Batang_Padi', 'OPD Wereng_Batang Coklat',
-        'OPD Tikus', 'OPD Blas', 'OPD Hwar Daun', 'OPD Tungro'
+        'OPD_Penggerek_Batang_Padi', 'OPD_Wereng_Batang_Coklat',
+        'OPD_Tikus', 'OPD_Blas', 'OPD_Hwar_Daun', 'OPD_Tungro'
     ]
 
     # dataset split dengan spatial+temp+id → otomatis jadi 152 fitur
@@ -135,11 +137,7 @@ try:
         shuffle=False
     )
 
-    # Ambil tensor X dari full dataset (train+val+test digabung lagi)
-    all_dataset = pd.concat([train_data, val_data, test_data])
-    all_dataset = all_dataset.sort_values("id")
-    # gunakan train_dataset.x_scale_info dll kalau preprocessing dipakai → opsional
-
+    # Ambil tensor X dari train_dataset (sudah diproses jadi 152 fitur)
     x_input = torch.tensor(train_dataset.x_data, dtype=torch.float32)
 
     with torch.no_grad():

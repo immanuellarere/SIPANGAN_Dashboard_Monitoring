@@ -18,13 +18,12 @@ st.caption("Monitoring Indeks Ketahanan Pangan (IKP) berbasis GTNNWR Pretrained 
 # --------------------------
 # Load Dataset
 # --------------------------
-DATA_PATH = "datasec.xlsx"
+DATA_PATH = "Data SEC 2025 (2).xlsx"
 MODEL_PATH = "gtnnwr_model.pt"   # full model .pt
 
 try:
     df = pd.read_excel(DATA_PATH, engine="openpyxl") if DATA_PATH.endswith("xlsx") else pd.read_csv(DATA_PATH)
     df = df.fillna(0)
-    # pastikan nama kolom snake_case
     df = df.rename(columns=lambda x: x.strip().replace(" ", "_"))
     df["id"] = range(len(df))
 except Exception as e:
@@ -110,7 +109,7 @@ st.subheader("🤖 Analisis GTNNWR (.pt)")
 df_pred = None
 try:
     # ----------------------
-    # Buat dataset penuh untuk inference
+    # Buat dataset penuh untuk inference (harus lewat init_dataset_split)
     # ----------------------
     x_columns = [
         'Skor_PPH', 'Luas_Panen', 'Produktivitas', 'Produksi',
@@ -120,9 +119,9 @@ try:
     ]
 
     full_dataset, _, _ = init_dataset_split(
-        train_data=df,   # pakai seluruh data
-        val_data=df,     # isi ulang biar scaler tidak error
-        test_data=df,    # isi ulang biar scaler tidak error
+        train_data=df,   # gunakan full data → biar scaling sama seperti training
+        val_data=df,
+        test_data=df,
         x_column=x_columns,
         y_column=["IKP"],
         spatial_column=["Longitude", "Latitude"],
@@ -133,18 +132,19 @@ try:
         shuffle=False
     )
 
-    # Ambil data X dengan cara benar
-    if hasattr(full_dataset, "x_data"):  # beberapa versi gnnwr punya ini
+    # Ambil fitur X dengan cara benar
+    if hasattr(full_dataset, "x_data"):  
         x_input = torch.tensor(full_dataset.x_data, dtype=torch.float32)
     else:
         x_all = [full_dataset[i][0].flatten() for i in range(len(full_dataset))]
         x_input = torch.stack(x_all)
 
+    st.write("📐 Shape input ke model:", x_input.shape)  # debug
+
     # Prediksi
     with torch.no_grad():
         y_pred = model(x_input)
 
-    # Panjang y_pred = panjang df
     df_pred = df.copy()
     df_pred["IKP_Prediksi"] = y_pred.numpy().flatten()[:len(df)]
 

@@ -110,16 +110,17 @@ except Exception as e:
 st.write("---")
 st.subheader("📍 Detail Provinsi")
 
+# Pilih provinsi
 prov = st.selectbox("Pilih Provinsi", df[prov_col].unique())
 prov_data = df[df[prov_col] == prov].copy()
 
-# Pilih tahun
+# Pilih tahun (2019–2024)
 tahun_opsi = sorted([int(t) for t in prov_data["Tahun"].unique() if 2019 <= int(t) <= 2024])
 tahun_pilih = st.selectbox("Pilih Tahun", tahun_opsi)
 
 st.write(f"### {prov} — IKP 2019–2024")
 
-# Filter tahun 2019–2024
+# Filter data tahun 2019–2024
 prov_data_filtered = (
     prov_data[prov_data["Tahun"].between(2019, 2024)][["Tahun", "IKP"]]
     .copy()
@@ -127,6 +128,33 @@ prov_data_filtered = (
 )
 prov_data_filtered["Tahun"] = prov_data_filtered["Tahun"].astype(int)
 
+# Inject CSS untuk memperbesar font tabel
+st.markdown(
+    """
+    <style>
+    table {
+        font-size: 18px !important;
+        text-align: center !important;
+        width: 100% !important;
+        border-collapse: collapse !important;
+    }
+    th, td {
+        padding: 8px 16px !important;
+        text-align: center !important;
+    }
+    thead th {
+        font-weight: bold !important;
+        border-bottom: 2px solid #999 !important;
+    }
+    tbody tr:nth-child(even) {
+        background-color: #f9f9f9 !important;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
+# Layout: tabel (kiri) + chart (kanan)
 col1, col2 = st.columns([1, 1.2])
 
 with col1:
@@ -137,13 +165,30 @@ with col2:
         x=alt.X("Tahun:O", title="Tahun", axis=alt.Axis(labelAngle=0)),
         y=alt.Y("IKP:Q", title="IKP")
     )
-    line = base.mark_line(point=True).encode(tooltip=["Tahun", "IKP"])
-    text = base.mark_text(align="left", dx=5, dy=-8, fontSize=12).encode(
+
+    line = base.mark_line(point=True).encode(
+        tooltip=["Tahun", "IKP"]
+    )
+
+    text = base.mark_text(
+        align="left", dx=5, dy=-8, fontSize=12, color="black"
+    ).encode(
         text=alt.Text("IKP:Q", format=".2f")
     )
+
     chart = (line + text).properties(
-        width=700, height=420, title="IKP 5 Tahun"
+        width=700,
+        height=420,
+        title="IKP 5 Tahun"
+    ).configure_axis(
+        labelFontSize=14,
+        titleFontSize=16
+    ).configure_title(
+        fontSize=20
+    ).configure_point(
+        size=70
     )
+
     st.altair_chart(chart, use_container_width=False)
 
 # --------------------------

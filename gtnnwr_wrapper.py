@@ -10,17 +10,13 @@ class GTNNWRWrapper:
         # ============================
         # DEFINISI FITUR
         # ============================
-        # Model lama hanya pakai 16 fitur total
-        # → 15 fitur base + 1 fitur temporal (Tahun)
         self.base_x_columns = [
             'Skor_PPH', 'Luas_Panen', 'Produktivitas', 'Produksi',
             'Tanah_Longsor', 'Banjir', 'Kekeringan', 'Kebakaran', 'Cuaca',
             'OPD_Penggerek_Batang_Padi', 'OPD_Wereng_Batang_Coklat',
             'OPD_Tikus', 'OPD_Blas', 'OPD_Hwar_Daun', 'OPD_Tungro'
         ]
-        self.extra_cols = ["Tahun"]   # hanya Tahun supaya total = 16 fitur
-
-        # Target kolom (output tunggal)
+        self.extra_cols = ["Tahun"]   # total = 16 fitur
         self.y_column = ["IKP"]
         self.prov_col = prov_col
 
@@ -30,7 +26,7 @@ class GTNNWRWrapper:
         if train_dataset is not None:
             self.model = GTNNWR(
                 train_dataset, val_dataset, test_dataset,
-                [[3], [512, 256, 64]],   # hidden layers sesuai model lama
+                [[3], [512, 256, 64]],
                 drop_out=0.5,
                 optimizer="Adadelta",
                 optimizer_params={
@@ -42,10 +38,15 @@ class GTNNWRWrapper:
                 model_name="GTNNWR_DSi"
             )._model
 
-            # Paksa layer terakhir = 16 output (bukan 19)
+            # --- cek apakah last layer Linear ---
             last_idx = len(self.model) - 1
-            in_features = self.model[last_idx].in_features
-            self.model[last_idx] = torch.nn.Linear(in_features, 16)
+            if isinstance(self.model[last_idx], torch.nn.Linear):
+                # kalau Linear → pastikan output 16
+                in_features = self.model[last_idx].in_features
+                self.model[last_idx] = torch.nn.Linear(in_features, 16)
+            else:
+                # kalau bukan Linear (mis. SWNN), biarkan apa adanya
+                print(f"⚠️ Layer terakhir bertipe {type(self.model[last_idx])}, tidak diubah.")
 
         else:
             self.model = None
@@ -58,7 +59,6 @@ class GTNNWRWrapper:
             raise ValueError("❌ Model belum diinisialisasi dengan dataset.")
 
         state_dict = torch.load(model_path, map_location="cpu")
-        # strict=True karena arsitektur sudah disamakan dengan model lama
         self.model.load_state_dict(state_dict, strict=True)
         self.model.eval()
         print(f"✅ Model lama (.pth) berhasil diload dari {model_path}")
@@ -68,7 +68,6 @@ class GTNNWRWrapper:
     # PREDIKSI
     # ============================
     def predict(self, data: pd.DataFrame):
-        # gunakan hanya 16 fitur (15 + Tahun)
         x_columns = self.base_x_columns + self.extra_cols
         x_input = torch.tensor(data[x_columns].values, dtype=torch.float32)
 
@@ -94,11 +93,9 @@ class GTNNWRWrapper:
         if not coefs:
             return None
 
-        # Ambil layer terakhir (matrix bobot)
         last_layer_name = list(coefs.keys())[-1]
         coef_matrix = coefs[last_layer_name]
 
-        # Pastikan kolom sesuai jumlah fitur (16)
         x_columns = self.base_x_columns + self.extra_cols
         coef_cols = (
             x_columns
@@ -108,8 +105,6 @@ class GTNNWRWrapper:
 
         coef_df = pd.DataFrame(coef_matrix, columns=coef_cols)
         coef_df["Intercept"] = 0.0
-
-        # Replikasi sesuai jumlah baris data
         coef_df = pd.concat([coef_df] * len(data), ignore_index=True)
         coef_df[self.prov_col] = data[self.prov_col].values
         coef_df["Tahun"] = data["Tahun"].values

@@ -1,26 +1,21 @@
 import streamlit as st
 import pandas as pd
-import folium
-from streamlit_folium import st_folium
-import geopandas as gpd
-import branca.colormap as cm
 import torch
 
 from gnnwr.datasets import init_dataset_split
-from gnnwr.models import GTNNWR
 
 # --------------------------
-# Halaman
+# Config
 # --------------------------
 st.set_page_config(page_title="SIPANGAN Dashboard Monitoring", layout="wide")
 st.title("📊 SIPANGAN Dashboard Monitoring")
-st.caption("Inference GTNNWR (.pt) dengan pipeline training yang sama")
+st.caption("Inference GTNNWR dengan pipeline yang sama (tanpa shape mismatch)")
 
 DATA_PATH = "datasec.xlsx"
-MODEL_PATH = "gtnnwr_model.pt"   # file .pt hasil training
+MODEL_PATH = "gtnnwr_model.pt"
 
 # --------------------------
-# Load data
+# Load Data
 # --------------------------
 try:
     df = pd.read_excel(DATA_PATH, engine="openpyxl") if DATA_PATH.endswith("xlsx") else pd.read_csv(DATA_PATH)
@@ -41,7 +36,7 @@ st.subheader("🔍 Data Preview")
 st.dataframe(df.head())
 
 # --------------------------
-# Definisi fitur
+# Definisi Fitur
 # --------------------------
 x_columns = [
     'Skor_PPH','Luas_Panen','Produktivitas','Produksi',
@@ -50,7 +45,7 @@ x_columns = [
     'OPD_Tikus','OPD_Blas','OPD_Hwar_Daun','OPD_Tungro'
 ]
 
-# Split sama seperti training
+# Split sama dengan training
 train_data = df[df["Tahun"] <= 2022].copy()
 val_data   = df[df["Tahun"] == 2023].copy()
 test_data  = df[df["Tahun"] == 2024].copy()
@@ -70,7 +65,7 @@ train_ds, val_ds, test_ds = init_dataset_split(
 )
 
 # --------------------------
-# Load model
+# Load Model
 # --------------------------
 @st.cache_resource
 def load_model():
@@ -80,13 +75,13 @@ def load_model():
 
 try:
     model = load_model()
-    st.success("✅ Model berhasil diload dari .pt (arsitektur + bobot)")
+    st.success("✅ Model berhasil diload dari .pt")
 except Exception as e:
     st.error(f"❌ Gagal load model: {e}")
     st.stop()
 
 # --------------------------
-# Bentuk input [N,1,152] dari dataset split
+# Siapkan Input dari Dataset Split
 # --------------------------
 def dataset_to_tensor(ds):
     if hasattr(ds, "x_data"):
@@ -99,7 +94,7 @@ x_train = dataset_to_tensor(train_ds)
 x_val   = dataset_to_tensor(val_ds)
 x_test  = dataset_to_tensor(test_ds)
 
-x_input = torch.cat([x_train, x_val, x_test], dim=0).unsqueeze(1)   # [N,1,152]
+x_input = torch.cat([x_train, x_val, x_test], dim=0).unsqueeze(1)  # [N,1,152]
 
 st.write("📐 Shape input final ke model:", x_input.shape)
 

@@ -6,6 +6,8 @@ import geopandas as gpd
 import branca.colormap as cm
 import torch
 
+from gnnwr.datasets import init_dataset_split  # penting buat preprocessing
+
 # --------------------------
 # Konfigurasi Halaman
 # --------------------------
@@ -48,7 +50,6 @@ st.dataframe(df.head())
 # --------------------------
 @st.cache_resource
 def load_model():
-    # pakai weights_only=False biar bisa load full model .pt di PyTorch 2.6+
     model = torch.load(MODEL_PATH, map_location="cpu", weights_only=False)
     model.eval()
     return model
@@ -107,12 +108,39 @@ st.subheader("🤖 Analisis GTNNWR (.pt)")
 
 df_pred = None
 try:
-    # ⚠️ pilih kolom input sesuai dengan training (kemarin dari print terlihat input layer = 152 fitur!)
-    x_columns = [c for c in df.columns if c not in ["IKP", prov_col, "id"]]
+    # split dataset sama seperti training → biar transformasi fitur identik
+    train_data = df[df["Tahun"] <= 2022]
+    val_data   = df[df["Tahun"] == 2023]
+    test_data  = df[df["Tahun"] == 2024]
 
-    x_input = torch.tensor(df[x_columns].values, dtype=torch.float32)
-    if x_input.dim() == 2:
-        x_input = x_input.unsqueeze(1)
+    x_columns = [
+        'Skor PPH', 'Luas_Panen', 'Produktivitas', 'Produksi',
+        'Tanah_Longsor', 'Banjir', 'Kekeringan', 'Kebakaran', 'Cuaca',
+        'OPD Penggerek Batang_Padi', 'OPD Wereng_Batang Coklat',
+        'OPD Tikus', 'OPD Blas', 'OPD Hwar Daun', 'OPD Tungro'
+    ]
+
+    # dataset split dengan spatial+temp+id → otomatis jadi 152 fitur
+    train_dataset, val_dataset, test_dataset = init_dataset_split(
+        train_data=train_data,
+        val_data=val_data,
+        test_data=test_data,
+        x_column=x_columns,
+        y_column=["IKP"],
+        spatial_column=["Longitude", "Latitude"],
+        temp_column=["Tahun"],
+        id_column=["id"],
+        use_model="gtnnwr",
+        batch_size=1024,
+        shuffle=False
+    )
+
+    # Ambil tensor X dari full dataset (train+val+test digabung lagi)
+    all_dataset = pd.concat([train_data, val_data, test_data])
+    all_dataset = all_dataset.sort_values("id")
+    # gunakan train_dataset.x_scale_info dll kalau preprocessing dipakai → opsional
+
+    x_input = torch.tensor(train_dataset.x_data, dtype=torch.float32)
 
     with torch.no_grad():
         y_pred = model(x_input)
